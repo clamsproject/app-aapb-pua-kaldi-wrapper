@@ -3,8 +3,6 @@ import os, shutil
 import subprocess
 from typing import Dict
 
-import ffmpeg
-
 from clams import ClamsApp, Restifier
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes, Text
 
@@ -123,12 +121,8 @@ def setup(files: list) -> None:
     for file, link in zip(files, links):
         shutil.copy(file, link)
         clipped_name = link[:-4]
-        (
-            ffmpeg
-            .input(link, ac=1, ar=16000)
-            .output(os.path.join(KALDI_16KHZ_DIRECTORY, f'{clipped_name}_16kHz.wav'))
-            .run()
-        )
+        subprocess.call(['ffmpeg', '-i', link, '-ac', '1', '-ar', '16000',
+                         os.path.join(KALDI_16KHZ_DIRECTORY, f'{clipped_name}_16kHz.wav')])
 
     subprocess.call([
         'python', '/kaldi/egs/american-archive-kaldi/run_kaldi.py',
