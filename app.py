@@ -28,9 +28,10 @@ class Kaldi(ClamsApp):
         }
         return metadata
 
-    def sniff(self, mmif):
-        # this mock-up method always returns True
-        return True
+    def sniff(self, mmif) -> bool:
+        if type(mmif) is not Mmif:
+            mmif = Mmif(mmif)
+        return len(mmif.get_documents_locations(DocumentTypes.AudioDocument.value)) > 0
 
     def annotate(self, mmif) -> Mmif:
         if type(mmif) is not Mmif:
