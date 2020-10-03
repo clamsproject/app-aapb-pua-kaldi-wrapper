@@ -24,15 +24,16 @@ class Kaldi(ClamsApp):
             "vendor": "Team CLAMS",
             "iri": f"http://mmif.clams.ai/apps/kaldi/{KALDI_VERSION}",
             "requires": [DocumentTypes.AudioDocument],
-            "produces": [DocumentTypes.TextDocument]  # , AnnotationTypes.Alignment]
+            "produces": [DocumentTypes.TextDocument, AnnotationTypes.TimeFrame, AnnotationTypes.Alignment]
         }
         return metadata
 
-    def sniff(self, mmif):
-        # this mock-up method always returns True
-        return True
+    def sniff(self, mmif) -> bool:
+        if type(mmif) is not Mmif:
+            mmif = Mmif(mmif)
+        return len(mmif.get_documents_locations(DocumentTypes.AudioDocument.value)) > 0
 
-    def annotate(self, mmif):
+    def annotate(self, mmif) -> Mmif:
         if type(mmif) is not Mmif:
             mmif = Mmif(mmif)
 
@@ -71,6 +72,8 @@ class Kaldi(ClamsApp):
                 view.add_document(td)
                 view.add_annotation(tf)
                 view.add_annotation(align)
+
+        return mmif
 
     @staticmethod
     def create_td(word: str, index: int) -> Document:
