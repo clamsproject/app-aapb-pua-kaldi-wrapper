@@ -24,7 +24,7 @@ class Kaldi(ClamsApp):
             "vendor": "Team CLAMS",
             "iri": f"http://mmif.clams.ai/apps/kaldi/{KALDI_VERSION}",
             "requires": [DocumentTypes.AudioDocument],
-            "produces": [DocumentTypes.TextDocument]  # , AnnotationTypes.Alignment]
+            "produces": [DocumentTypes.TextDocument, AnnotationTypes.TimeFrame, AnnotationTypes.Alignment]
         }
         return metadata
 
