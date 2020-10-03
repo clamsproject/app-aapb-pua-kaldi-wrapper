@@ -32,7 +32,7 @@ class Kaldi(ClamsApp):
         # this mock-up method always returns True
         return True
 
-    def annotate(self, mmif):
+    def annotate(self, mmif) -> Mmif:
         if type(mmif) is not Mmif:
             mmif = Mmif(mmif)
 
@@ -71,6 +71,8 @@ class Kaldi(ClamsApp):
                 view.add_document(td)
                 view.add_annotation(tf)
                 view.add_annotation(align)
+
+        return mmif
 
     @staticmethod
     def create_td(word: str, index: int) -> Document:
