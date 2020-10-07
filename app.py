@@ -129,9 +129,9 @@ def setup(files: list) -> None:
         subprocess.call(['mv', f'{clipped_name}_16kHz.wav', KALDI_16KHZ_DIRECTORY])
 
     subprocess.call([
-        'python', '/kaldi/egs/american-archive-kaldi/run_kaldi.py',
-        KALDI_EXPERIMENT_DIR, '/audio_in_16khz/',
-        '&&',
+        'python', '/kaldi/egs/american-archive-kaldi/run_kaldi.py',  # this is a Python 2 call
+        KALDI_EXPERIMENT_DIR, KALDI_16KHZ_DIRECTORY])
+    subprocess.call([
         'rsync', '-a', '/kaldi/egs/american-archive-kaldi/sample_experiment/output/', '/audio_in/transcripts/'
     ])
     subprocess.call(['rm', '-r', KALDI_16KHZ_DIRECTORY])
