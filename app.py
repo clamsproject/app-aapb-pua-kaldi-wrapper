@@ -1,7 +1,8 @@
 import json
-import os, shutil
+import os
+import shutil
 import subprocess
-from typing import Dict
+from typing import Dict, Any
 
 from clams import ClamsApp, Restifier
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes, Text
@@ -17,7 +18,7 @@ ALIGNMENT_PREFIX = 'a'
 
 
 class Kaldi(ClamsApp):
-    def appmetadata(self):
+    def appmetadata(self) -> Dict[str, Any]:
         metadata = {
             "name": "Kaldi Wrapper",
             "description": "This tool wraps the Kaldi ASR tool",
@@ -124,17 +125,17 @@ def setup(files: list) -> None:
     for file, link in zip(files, links):
         shutil.copy(file, link)
         clipped_name = link[:-4]
-        subprocess.call(['ffmpeg', '-i', link, '-ac', '1', '-ar', '16000',
+        subprocess.run(['ffmpeg', '-i', link, '-ac', '1', '-ar', '16000',
                          f'{clipped_name}_16kHz.wav'])
-        subprocess.call(['mv', f'{clipped_name}_16kHz.wav', KALDI_16KHZ_DIRECTORY])
+        subprocess.run(['mv', f'{clipped_name}_16kHz.wav', KALDI_16KHZ_DIRECTORY])
 
-    subprocess.call([
+    subprocess.run([
         'python', '/kaldi/egs/american-archive-kaldi/run_kaldi.py',  # this is a Python 2 call
         KALDI_EXPERIMENT_DIR, KALDI_16KHZ_DIRECTORY])
-    subprocess.call([
+    subprocess.run([
         'rsync', '-a', '/kaldi/egs/american-archive-kaldi/sample_experiment/output/', '/audio_in/transcripts/'
     ])
-    subprocess.call(['rm', '-r', KALDI_16KHZ_DIRECTORY])
+    subprocess.run(['rm', '-r', KALDI_16KHZ_DIRECTORY])
 
 
 if __name__ == '__main__':
