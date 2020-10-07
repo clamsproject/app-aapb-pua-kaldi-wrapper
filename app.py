@@ -6,7 +6,7 @@ from typing import Dict
 from clams import ClamsApp, Restifier
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes, Text
 
-KALDI_MEDIA_DIRECTORY = '/audio-in'
+KALDI_MEDIA_DIRECTORY = '/audio_in'
 KALDI_16KHZ_DIRECTORY = '/audio_in_16khz'
 KALDI_EXPERIMENT_DIR = '/kaldi/egs/american-archive-kaldi/sample_experiment'
 KALDI_OUTPUT_DIR = os.path.join(KALDI_EXPERIMENT_DIR, 'output')
