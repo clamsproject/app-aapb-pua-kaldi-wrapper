@@ -125,7 +125,8 @@ def setup(files: list) -> None:
         shutil.copy(file, link)
         clipped_name = link[:-4]
         subprocess.call(['ffmpeg', '-i', link, '-ac', '1', '-ar', '16000',
-                         os.path.join(KALDI_16KHZ_DIRECTORY, f'{clipped_name}_16kHz.wav')])
+                         f'{clipped_name}_16kHz.wav'])
+        subprocess.call(['mv', f'{clipped_name}_16kHz.wav', KALDI_16KHZ_DIRECTORY])
 
     subprocess.call([
         'python', '/kaldi/egs/american-archive-kaldi/run_kaldi.py',
