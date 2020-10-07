@@ -6,6 +6,7 @@ from typing import Dict, Any
 
 from clams import ClamsApp, Restifier
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes, Text
+from mmif.serialize.model import MmifObjectEncoder
 
 KALDI_MEDIA_DIRECTORY = '/audio_in'
 KALDI_16KHZ_DIRECTORY = '/audio_in_16khz'
@@ -18,8 +19,9 @@ ALIGNMENT_PREFIX = 'a'
 
 
 class Kaldi(ClamsApp):
-    def appmetadata(self) -> Dict[str, Any]:
-        metadata = {
+
+    def __init__(self):
+        self.metadata = {
             "name": "Kaldi Wrapper",
             "description": "This tool wraps the Kaldi ASR tool",
             "vendor": "Team CLAMS",
@@ -27,7 +29,10 @@ class Kaldi(ClamsApp):
             "requires": [DocumentTypes.AudioDocument],
             "produces": [DocumentTypes.TextDocument, AnnotationTypes.TimeFrame, AnnotationTypes.Alignment]
         }
-        return metadata
+        super().__init__()
+
+    def appmetadata(self):
+        return json.dumps(self.metadata, cls=MmifObjectEncoder)
 
     def sniff(self, mmif) -> bool:
         if type(mmif) is not Mmif:
@@ -109,7 +114,7 @@ class Kaldi(ClamsApp):
     def stamp_view(self, view: View, tf_source_id: str) -> None:
         if view.is_frozen():
             raise ValueError("can't modify an old view")
-        view.metadata['app'] = self.appmetadata()['iri']
+        view.metadata['app'] = self.metadata['iri']
         view.new_contain(DocumentTypes.TextDocument)
         view.new_contain(AnnotationTypes.TimeFrame, {'unit': 'milliseconds', 'document': tf_source_id})
         view.new_contain(AnnotationTypes.Alignment)
