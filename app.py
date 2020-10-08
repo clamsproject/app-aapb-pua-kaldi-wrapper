@@ -39,7 +39,7 @@ class Kaldi(ClamsApp):
             mmif = Mmif(mmif)
         return len(mmif.get_documents_locations(DocumentTypes.AudioDocument.value)) > 0
 
-    def annotate(self, mmif) -> Mmif:
+    def annotate(self, mmif, run_kaldi=True) -> Mmif:
         if type(mmif) is not Mmif:
             mmif = Mmif(mmif)
 
@@ -55,8 +55,9 @@ class Kaldi(ClamsApp):
         # TODO (angus-lherrou @ 2020-10-03): allow duplicate basenames for files originally from different folders
         #  by renaming files more descriptively
 
-        # run setup
-        setup(files)
+        if run_kaldi:
+            # run setup
+            setup(files)
 
         # get Kaldi's output
         json_transcripts: Dict[str, dict] = {}
