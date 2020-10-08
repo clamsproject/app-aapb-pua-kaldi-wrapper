@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 import subprocess
-from typing import Dict, Any
+from typing import Dict
 
 from clams import ClamsApp, Restifier
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes, Text
@@ -144,6 +144,6 @@ def setup(files: list) -> None:
 
 
 if __name__ == '__main__':
-    kaldi_tool = Kaldi()
-    spacy_service = Restifier(kaldi_tool)
-    spacy_service.run()
+    kaldi_app = Kaldi()
+    kaldi_service = Restifier(kaldi_app)
+    kaldi_service.run()
