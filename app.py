@@ -62,7 +62,10 @@ class Kaldi(ClamsApp):
         json_transcripts: Dict[str, dict] = {}
         for transcript in os.listdir(os.path.join(KALDI_OUTPUT_DIR, 'json')):
             with open(os.path.join(KALDI_OUTPUT_DIR, 'json', transcript), encoding='utf8') as json_file:
-                json_transcripts[os.path.splitext(transcript)[0]] = json.load(json_file)
+                filename = os.path.splitext(transcript)[0]
+                if filename.endswith('_16kHz'):
+                    filename = filename[:-6]
+                json_transcripts[filename] = json.load(json_file)
 
         assert sorted(docs_dict.keys()) == sorted(json_transcripts.keys()), 'got a transcript for every file'
 
