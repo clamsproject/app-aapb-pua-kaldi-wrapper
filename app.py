@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 import subprocess
-from typing import Dict, Iterator, Tuple, List
+from typing import Dict, Iterator, Tuple, List, Union
 import argparse
 
 from clams import ClamsApp, Restifier
@@ -42,12 +42,15 @@ class Kaldi(ClamsApp):
             mmif = Mmif(mmif)
         return len(mmif.get_documents_locations(DocumentTypes.AudioDocument.value)) > 0
 
-    def annotate(self, mmif, run_kaldi=True) -> Mmif:
-        if type(mmif) is not Mmif:
-            mmif = Mmif(mmif)
+    def annotate(self, mmif: Union[str, dict, Mmif], run_kaldi=True) -> Mmif:
+        mmif_obj: Mmif
+        if isinstance(mmif, Mmif):
+            mmif_obj: Mmif = mmif
+        else:
+            mmif_obj: Mmif = Mmif(mmif)
 
         # get AudioDocuments with locations
-        docs = [document for document in mmif.documents
+        docs = [document for document in mmif_obj.documents
                 if document.at_type == DocumentTypes.AudioDocument.value and len(document.location) > 0]
 
         files = [document.location for document in docs]
@@ -75,7 +78,7 @@ class Kaldi(ClamsApp):
 
         for basename, transcript in json_transcripts.items():
             # convert transcript to MMIF view
-            view: View = mmif.new_view()
+            view: View = mmif_obj.new_view()
             self.stamp_view(view, docs_dict[basename].id)
             # index and join tokens
             indices, doc = self.index_and_join_tokens(token['word'] for token in transcript['words'])
@@ -90,7 +93,7 @@ class Kaldi(ClamsApp):
                 view.add_annotation(tf)
                 view.add_annotation(align)
 
-        return mmif
+        return mmif_obj
 
     @staticmethod
     def index_and_join_tokens(tokens: Iterator[str]) -> Tuple[List[Tuple[int, int]], str]:
