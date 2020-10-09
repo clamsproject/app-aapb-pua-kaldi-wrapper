@@ -1,6 +1,5 @@
 import json
 import unittest
-import os
 from string import Template
 
 from lapps.discriminators import Uri
@@ -15,7 +14,7 @@ class TestKaldiApp(unittest.TestCase):
         self.maxDiff = None
         self.kaldi_app = app.Kaldi()
         self.test_output = []
-        app.KALDI_OUTPUT_DIR = 'test_output'
+        app.TRANSCRIPT_DIR = 'test_output'
         completed_process = subprocess.run(
             [
                 'clams',
@@ -50,7 +49,7 @@ class TestAnnotation(unittest.TestCase):
     def setUp(self) -> None:
         self.kaldi_app = app.Kaldi()
         self.test_output = []
-        app.KALDI_OUTPUT_DIR = 'test_output'
+        app.TRANSCRIPT_DIR = 'test_output'
         completed_process = subprocess.run(
             [
                 'clams',

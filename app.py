@@ -9,11 +9,13 @@ from clams import ClamsApp, Restifier
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes, Text
 from lapps.discriminators import Uri
 
-KALDI_MEDIA_DIRECTORY = '/audio_in'
-KALDI_16KHZ_DIRECTORY = '/audio_in_16khz'
-KALDI_EXPERIMENT_DIR = '/kaldi/egs/american-archive-kaldi/sample_experiment'
+MEDIA_DIRECTORY = '/audio_in'
+MEDIA_DIRECTORY_16KHZ = '/audio_in_16khz'
+KALDI_AMERICAN_ARCHIVE = '/kaldi/egs/american-archive-kaldi'
+KALDI_EXPERIMENT_DIR = os.path.join(KALDI_AMERICAN_ARCHIVE, 'sample_experiment')
 KALDI_OUTPUT_DIR = os.path.join(KALDI_EXPERIMENT_DIR, 'output')
-KALDI_VERSION = 'IDK'
+TRANSCRIPT_DIR = os.path.join(MEDIA_DIRECTORY, 'transcripts')
+KALDI_VERSION = '0.0.1'
 TOKEN_PREFIX = 't'
 TEXT_DOCUMENT_PREFIX = 'td'
 TIME_FRAME_PREFIX = 'tf'
@@ -67,8 +69,8 @@ class Kaldi(ClamsApp):
 
         # get Kaldi's output
         json_transcripts: Dict[str, dict] = {}
-        for transcript in os.listdir(os.path.join(KALDI_OUTPUT_DIR, 'json')):
-            with open(os.path.join(KALDI_OUTPUT_DIR, 'json', transcript), encoding='utf8') as json_file:
+        for transcript in os.listdir(os.path.join(TRANSCRIPT_DIR, 'json')):
+            with open(os.path.join(TRANSCRIPT_DIR, 'json', transcript), encoding='utf8') as json_file:
                 filename = os.path.splitext(transcript)[0]
                 if filename.endswith('_16kHz'):
                     filename = filename[:-6]
@@ -159,26 +161,30 @@ class Kaldi(ClamsApp):
 
 
 def setup(files: list) -> None:
-    links = [os.path.join(KALDI_MEDIA_DIRECTORY, os.path.basename(file)) for file in files]
+    links = [os.path.join(MEDIA_DIRECTORY, os.path.basename(file)) for file in files]
 
     # make 16khz directory
-    os.mkdir(KALDI_16KHZ_DIRECTORY)
+    os.mkdir(MEDIA_DIRECTORY_16KHZ)
 
-    # symlink these files to KALDI_MEDIA_DIRECTORY
+    # copy these files to MEDIA_DIRECTORY
     for file, link in zip(files, links):
         shutil.copy(file, link)
         clipped_name = link[:-4]
         subprocess.run(['ffmpeg', '-i', link, '-ac', '1', '-ar', '16000',
                          f'{clipped_name}_16kHz.wav'])
-        subprocess.run(['mv', f'{clipped_name}_16kHz.wav', KALDI_16KHZ_DIRECTORY])
+        subprocess.run(['mv', f'{clipped_name}_16kHz.wav', MEDIA_DIRECTORY_16KHZ])
 
+    # run Kaldi
     subprocess.run([
-        'python', '/kaldi/egs/american-archive-kaldi/run_kaldi.py',  # this is a Python 2 call
-        KALDI_EXPERIMENT_DIR, KALDI_16KHZ_DIRECTORY])
-    subprocess.run([
-        'rsync', '-a', '/kaldi/egs/american-archive-kaldi/sample_experiment/output/', '/audio_in/transcripts/'
+        'python', os.path.join(KALDI_AMERICAN_ARCHIVE, 'run_kaldi.py'),  # this is a Python 2 call
+        KALDI_EXPERIMENT_DIR, MEDIA_DIRECTORY_16KHZ
     ])
-    subprocess.run(['rm', '-r', KALDI_16KHZ_DIRECTORY])
+
+    # copy Kaldi transcripts into
+    subprocess.run([
+        'rsync', '-a', KALDI_OUTPUT_DIR, os.path.join(MEDIA_DIRECTORY, 'transcripts')
+    ])
+    subprocess.run(['rm', '-r', MEDIA_DIRECTORY_16KHZ])
 
 
 if __name__ == '__main__':
