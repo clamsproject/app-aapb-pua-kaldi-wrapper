@@ -2,7 +2,8 @@ import json
 import os
 import shutil
 import subprocess
-from typing import Dict
+from typing import Dict, Iterator, Tuple, List
+import argparse
 
 from clams import ClamsApp, Restifier
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes, Text
@@ -148,6 +149,27 @@ def setup(files: list) -> None:
 
 
 if __name__ == '__main__':
-    kaldi_app = Kaldi()
-    kaldi_service = Restifier(kaldi_app)
-    kaldi_service.run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--once',
+                        type=str,
+                        help='Use this flag if you want to run Kaldi on a path you specify, instead of running '
+                             'the Flask app.')
+    parser.add_argument('--no-kaldi',
+                        help='Add this flag if Kaldi has already been run and you just want to re-annotate.')
+
+    args = parser.parse_args()
+
+    if args.once:
+        with open('gbh/mmif.json') as mmif_in:
+            mmif_str = mmif_in.read()
+
+        kaldi_app = Kaldi()
+
+        mmif_out = kaldi_app.annotate(mmif_str, run_kaldi=args.no_kaldi)
+        with open('mmif_out.json', 'w') as out_file:
+            out_file.write(mmif_out.serialize(pretty=True))
+
+    else:
+        kaldi_app = Kaldi()
+        kaldi_service = Restifier(kaldi_app)
+        kaldi_service.run()
