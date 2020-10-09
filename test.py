@@ -7,7 +7,7 @@ from lapps.discriminators import Uri
 
 import app
 import subprocess
-from mmif import AnnotationTypes, DocumentTypes, Mmif
+from mmif import AnnotationTypes, DocumentTypes, Mmif, __specver__
 
 
 class TestKaldiApp(unittest.TestCase):
@@ -31,7 +31,8 @@ class TestKaldiApp(unittest.TestCase):
     def test_appmetadata(self):
         metadata = json.loads(self.kaldi_app.appmetadata())
         with open('test_output/appmetadata.json') as target:
-            target_metadata = json.loads(Template(target.read()).substitute(version=app.KALDI_VERSION))
+            target_metadata = json.loads(Template(target.read()).substitute(version=app.KALDI_VERSION,
+                                                                            specver=__specver__))
         self.assertDictEqual(target_metadata, metadata)
 
     def test_annotate(self):
