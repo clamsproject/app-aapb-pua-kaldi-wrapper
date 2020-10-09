@@ -7,13 +7,14 @@ import argparse
 
 from clams import ClamsApp, Restifier
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes, Text
-from mmif.serialize.model import MmifObjectEncoder
+from lapps.discriminators import Uri
 
 KALDI_MEDIA_DIRECTORY = '/audio_in'
 KALDI_16KHZ_DIRECTORY = '/audio_in_16khz'
 KALDI_EXPERIMENT_DIR = '/kaldi/egs/american-archive-kaldi/sample_experiment'
 KALDI_OUTPUT_DIR = os.path.join(KALDI_EXPERIMENT_DIR, 'output')
 KALDI_VERSION = 'IDK'
+TOKEN_PREFIX = 't'
 TEXT_DOCUMENT_PREFIX = 'td'
 TIME_FRAME_PREFIX = 'tf'
 ALIGNMENT_PREFIX = 'a'
@@ -21,19 +22,20 @@ ALIGNMENT_PREFIX = 'a'
 
 class Kaldi(ClamsApp):
 
-    def __init__(self):
-        self.metadata = {
+    def setupmetadata(self) -> dict:
+        return {
             "name": "Kaldi Wrapper",
             "description": "This tool wraps the Kaldi ASR tool",
             "vendor": "Team CLAMS",
             "iri": f"http://mmif.clams.ai/apps/kaldi/{KALDI_VERSION}",
-            "requires": [DocumentTypes.AudioDocument],
-            "produces": [DocumentTypes.TextDocument, AnnotationTypes.TimeFrame, AnnotationTypes.Alignment]
+            "requires": [DocumentTypes.AudioDocument.value],
+            "produces": [
+                DocumentTypes.TextDocument.value,
+                AnnotationTypes.TimeFrame.value,
+                AnnotationTypes.Alignment.value,
+                Uri.TOKEN
+            ]
         }
-        super().__init__()
-
-    def appmetadata(self):
-        return json.dumps(self.metadata, cls=MmifObjectEncoder)
 
     def sniff(self, mmif) -> bool:
         if type(mmif) is not Mmif:
@@ -75,31 +77,58 @@ class Kaldi(ClamsApp):
             # convert transcript to MMIF view
             view: View = mmif.new_view()
             self.stamp_view(view, docs_dict[basename].id)
+            # index and join tokens
+            indices, doc = self.index_and_join_tokens(token['word'] for token in transcript['words'])
             # make annotations
+            td = self.create_td(doc)
+            view.add_document(td)
             for index, word_obj in enumerate(transcript['words']):
-                td = self.create_td(word_obj['word'], index)
                 tf = self.create_tf(word_obj['time'], word_obj['duration'], index)
-                align = self.create_align(td, tf, index)
-                view.add_document(td)
+                token = self.create_token(word_obj['word'], index, indices, f'{view.id}:{td.id}')
+                align = self.create_align(tf, token, index)
+                view.add_annotation(token)
                 view.add_annotation(tf)
                 view.add_annotation(align)
 
         return mmif
 
     @staticmethod
-    def create_td(word: str, index: int) -> Document:
+    def index_and_join_tokens(tokens: Iterator[str]) -> Tuple[List[Tuple[int, int]], str]:
+        position = 0
+        indices: List[Tuple[int, int]] = []
+        for token in tokens:
+            start = position
+            position += len(token)
+            end = position
+            position += 1
+            indices.append((start, end))
+        doc = ' '.join(tokens)
+        return indices, doc
+
+    @staticmethod
+    def create_td(doc: str) -> Document:
         text = Text()
-        text.value = word
+        text.value = doc
         td = Document()
-        td.at_type = DocumentTypes.TextDocument
-        td.id = TEXT_DOCUMENT_PREFIX + str(index + 1)
+        td.at_type = DocumentTypes.TextDocument.value
         td.properties.text = text
         return td
 
     @staticmethod
+    def create_token(word: str, index: int, indices: List[Tuple[int, int]], source_doc_id: str) -> Annotation:
+        token = Annotation()
+        token.at_type = Uri.TOKEN
+        token.id = TOKEN_PREFIX + str(index + 1)
+        token.add_property('word', word)
+        token.add_property('start', indices[index][0])
+        token.add_property('end', indices[index][1])
+        token.add_property('document', source_doc_id)
+        return token
+
+    @staticmethod
     def create_tf(time: float, duration: str, index: int) -> Annotation:
         tf = Annotation()
-        tf.at_type = AnnotationTypes.TimeFrame
+        tf.at_type = AnnotationTypes.TimeFrame.value
         tf.id = TIME_FRAME_PREFIX + str(index + 1)
         tf.properties['frameType'] = 'speech'
         # times should be in milliseconds
@@ -108,21 +137,22 @@ class Kaldi(ClamsApp):
         return tf
 
     @staticmethod
-    def create_align(td: Document, tf: Annotation, index: int) -> Annotation:
+    def create_align(tf: Annotation, token: Annotation, index: int) -> Annotation:
         align = Annotation()
-        align.at_type = AnnotationTypes.Alignment
+        align.at_type = AnnotationTypes.Alignment.value
         align.id = ALIGNMENT_PREFIX + str(index + 1)
         align.properties['source'] = tf.id
-        align.properties['target'] = td.id
+        align.properties['target'] = token.id
         return align
 
     def stamp_view(self, view: View, tf_source_id: str) -> None:
         if view.is_frozen():
             raise ValueError("can't modify an old view")
         view.metadata['app'] = self.metadata['iri']
-        view.new_contain(DocumentTypes.TextDocument)
-        view.new_contain(AnnotationTypes.TimeFrame, {'unit': 'milliseconds', 'document': tf_source_id})
-        view.new_contain(AnnotationTypes.Alignment)
+        view.new_contain(DocumentTypes.TextDocument.value)
+        view.new_contain(Uri.TOKEN)
+        view.new_contain(AnnotationTypes.TimeFrame.value, {'unit': 'milliseconds'})
+        view.new_contain(AnnotationTypes.Alignment.value)
 
 
 def setup(files: list) -> None:
