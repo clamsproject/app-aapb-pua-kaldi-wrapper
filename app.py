@@ -1,3 +1,7 @@
+# app-puakaldi-wrapper version 0.1.0
+# author: Angus L'Herrou
+# org: CLAMS team
+
 import json
 import os
 import shutil
