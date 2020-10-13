@@ -66,9 +66,9 @@ class TestAnnotation(unittest.TestCase):
     def test_mmif_list_lengths(self):
         self.assertEqual(3, len(self.mmif_output.documents))
         self.assertEqual(3, len(self.mmif_output.views))
-        self.assertEqual(4216, len(self.mmif_output['v_0'].annotations))
-        self.assertEqual(13777, len(self.mmif_output['v_1'].annotations))
-        self.assertEqual(12787, len(self.mmif_output['v_2'].annotations))
+        self.assertEqual(4217, len(self.mmif_output['v_0'].annotations))
+        self.assertEqual(13778, len(self.mmif_output['v_1'].annotations))
+        self.assertEqual(12788, len(self.mmif_output['v_2'].annotations))
 
     def test_view_contents_counts(self):
         v_0 = self.mmif_output['v_0']
@@ -78,24 +78,24 @@ class TestAnnotation(unittest.TestCase):
         self.assertEqual(1, len([anno for anno in v_0.annotations if anno.at_type == DocumentTypes.TextDocument.value]))
         self.assertEqual(1405, len([anno for anno in v_0.annotations if anno.at_type == Uri.TOKEN]))
         self.assertEqual(1405, len([anno for anno in v_0.annotations if anno.at_type == AnnotationTypes.TimeFrame.value]))
-        self.assertEqual(1405, len([anno for anno in v_0.annotations if anno.at_type == AnnotationTypes.Alignment.value]))
+        self.assertEqual(1406, len([anno for anno in v_0.annotations if anno.at_type == AnnotationTypes.Alignment.value]))
 
         self.assertEqual(1, len([anno for anno in v_1.annotations if anno.at_type == DocumentTypes.TextDocument.value]))
         self.assertEqual(4592, len([anno for anno in v_1.annotations if anno.at_type == Uri.TOKEN]))
         self.assertEqual(4592, len([anno for anno in v_1.annotations if anno.at_type == AnnotationTypes.TimeFrame.value]))
-        self.assertEqual(4592, len([anno for anno in v_1.annotations if anno.at_type == AnnotationTypes.Alignment.value]))
+        self.assertEqual(4593, len([anno for anno in v_1.annotations if anno.at_type == AnnotationTypes.Alignment.value]))
 
         self.assertEqual(1, len([anno for anno in v_2.annotations if anno.at_type == DocumentTypes.TextDocument.value]))
         self.assertEqual(4262, len([anno for anno in v_2.annotations if anno.at_type == Uri.TOKEN]))
         self.assertEqual(4262, len([anno for anno in v_2.annotations if anno.at_type == AnnotationTypes.TimeFrame.value]))
-        self.assertEqual(4262, len([anno for anno in v_2.annotations if anno.at_type == AnnotationTypes.Alignment.value]))
+        self.assertEqual(4263, len([anno for anno in v_2.annotations if anno.at_type == AnnotationTypes.Alignment.value]))
 
     def test_contains(self):
         self.assertDictEqual(
             {
                 DocumentTypes.TextDocument.value: {},
                 Uri.TOKEN: {},
-                AnnotationTypes.TimeFrame.value: {'unit': 'milliseconds'},
+                AnnotationTypes.TimeFrame.value: {'unit': 'milliseconds', 'document': 'd1'},
                 AnnotationTypes.Alignment.value: {}
             },
             json.loads(self.mmif_output['v_0'].metadata.contains.serialize())

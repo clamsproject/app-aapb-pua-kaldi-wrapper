@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 import subprocess
-from typing import Dict, Iterator, Tuple, List, Union
+from typing import Dict, Sequence, Tuple, List, Union
 import argparse
 
 from clams import ClamsApp, Restifier
@@ -15,7 +15,7 @@ KALDI_AMERICAN_ARCHIVE = '/kaldi/egs/american-archive-kaldi'
 KALDI_EXPERIMENT_DIR = os.path.join(KALDI_AMERICAN_ARCHIVE, 'sample_experiment')
 KALDI_OUTPUT_DIR = os.path.join(KALDI_EXPERIMENT_DIR, 'output')
 TRANSCRIPT_DIR = os.path.join(MEDIA_DIRECTORY, 'transcripts')
-KALDI_VERSION = '0.0.1'
+KALDI_VERSION = '0.1.0'
 TOKEN_PREFIX = 't'
 TEXT_DOCUMENT_PREFIX = 'td'
 TIME_FRAME_PREFIX = 'tf'
@@ -83,14 +83,16 @@ class Kaldi(ClamsApp):
             view: View = mmif_obj.new_view()
             self.stamp_view(view, docs_dict[basename].id)
             # index and join tokens
-            indices, doc = self.index_and_join_tokens(token['word'] for token in transcript['words'])
+            indices, doc = self.index_and_join_tokens([token['word'] for token in transcript['words']])
             # make annotations
-            td = self.create_td(doc)
+            td = self.create_td(doc, 0)
             view.add_document(td)
+            align_1 = self.create_align(docs_dict[basename], td, 0)
+            view.add_annotation(align_1)
             for index, word_obj in enumerate(transcript['words']):
                 tf = self.create_tf(word_obj['time'], word_obj['duration'], index)
                 token = self.create_token(word_obj['word'], index, indices, f'{view.id}:{td.id}')
-                align = self.create_align(tf, token, index)
+                align = self.create_align(tf, token, index+1)  # one more alignment than the others
                 view.add_annotation(token)
                 view.add_annotation(tf)
                 view.add_annotation(align)
@@ -98,7 +100,7 @@ class Kaldi(ClamsApp):
         return mmif_obj
 
     @staticmethod
-    def index_and_join_tokens(tokens: Iterator[str]) -> Tuple[List[Tuple[int, int]], str]:
+    def index_and_join_tokens(tokens: Sequence[str]) -> Tuple[List[Tuple[int, int]], str]:
         position = 0
         indices: List[Tuple[int, int]] = []
         for token in tokens:
@@ -111,10 +113,11 @@ class Kaldi(ClamsApp):
         return indices, doc
 
     @staticmethod
-    def create_td(doc: str) -> Document:
+    def create_td(doc: str, index: int) -> Document:
         text = Text()
         text.value = doc
         td = Document()
+        td.id = TEXT_DOCUMENT_PREFIX + str(index + 1)
         td.at_type = DocumentTypes.TextDocument.value
         td.properties.text = text
         return td
@@ -142,12 +145,12 @@ class Kaldi(ClamsApp):
         return tf
 
     @staticmethod
-    def create_align(tf: Annotation, token: Annotation, index: int) -> Annotation:
+    def create_align(source: Annotation, target: Annotation, index: int) -> Annotation:
         align = Annotation()
         align.at_type = AnnotationTypes.Alignment.value
         align.id = ALIGNMENT_PREFIX + str(index + 1)
-        align.properties['source'] = tf.id
-        align.properties['target'] = token.id
+        align.properties['source'] = source.id
+        align.properties['target'] = target.id
         return align
 
     def stamp_view(self, view: View, tf_source_id: str) -> None:
@@ -156,7 +159,7 @@ class Kaldi(ClamsApp):
         view.metadata['app'] = self.metadata['iri']
         view.new_contain(DocumentTypes.TextDocument.value)
         view.new_contain(Uri.TOKEN)
-        view.new_contain(AnnotationTypes.TimeFrame.value, {'unit': 'milliseconds'})
+        view.new_contain(AnnotationTypes.TimeFrame.value, {'unit': 'milliseconds', 'document': tf_source_id})
         view.new_contain(AnnotationTypes.Alignment.value)
 
 
