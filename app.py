@@ -19,7 +19,8 @@ KALDI_AMERICAN_ARCHIVE = '/kaldi/egs/american-archive-kaldi'
 KALDI_EXPERIMENT_DIR = os.path.join(KALDI_AMERICAN_ARCHIVE, 'sample_experiment')
 KALDI_OUTPUT_DIR = os.path.join(KALDI_EXPERIMENT_DIR, 'output')
 TRANSCRIPT_DIR = os.path.join(MEDIA_DIRECTORY, 'transcripts')
-KALDI_VERSION = '0.1.0'
+APP_VERSION = '0.1.0'
+WRAPPED_IMAGE = 'hipstas/kaldi-pop-up-archive:v1'
 TOKEN_PREFIX = 't'
 TEXT_DOCUMENT_PREFIX = 'td'
 TIME_FRAME_PREFIX = 'tf'
@@ -33,7 +34,8 @@ class Kaldi(ClamsApp):
             "name": "Kaldi Wrapper",
             "description": "This tool wraps the Kaldi ASR tool",
             "vendor": "Team CLAMS",
-            "iri": f"http://mmif.clams.ai/apps/kaldi/{KALDI_VERSION}",
+            "iri": f"http://mmif.clams.ai/apps/kaldi/{APP_VERSION}",
+            "wrappee": WRAPPED_IMAGE,
             "requires": [DocumentTypes.AudioDocument.value],
             "produces": [
                 DocumentTypes.TextDocument.value,

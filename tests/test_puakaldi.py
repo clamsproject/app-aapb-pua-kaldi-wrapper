@@ -30,7 +30,7 @@ class TestKaldiApp(unittest.TestCase):
     def test_appmetadata(self):
         metadata = json.loads(self.kaldi_app.appmetadata())
         with open('test_output/appmetadata.json') as target:
-            target_metadata = json.loads(Template(target.read()).substitute(version=app.KALDI_VERSION,
+            target_metadata = json.loads(Template(target.read()).substitute(version=app.APP_VERSION,
                                                                             specver=__specver__))
         self.assertDictEqual(target_metadata, metadata)
 
