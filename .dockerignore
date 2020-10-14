@@ -1,3 +1,6 @@
 gbh/
 test.py
 test_output/
+tests/
+.git/
+Dockerfile
