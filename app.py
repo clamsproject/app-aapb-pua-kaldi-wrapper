@@ -198,24 +198,32 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--once',
                         type=str,
+                        metavar='PATH',
                         help='Use this flag if you want to run Kaldi on a path you specify, instead of running '
                              'the Flask app.')
     parser.add_argument('--no-kaldi',
+                        action='store_false',
                         help='Add this flag if Kaldi has already been run and you just want to re-annotate.')
+    parser.add_argument('--pretty',
+                        action='store_true',
+                        help='Use this flag to return "pretty" (indented) MMIF data.')
 
-    args = parser.parse_args()
+    parsed_args = parser.parse_args()
 
-    if args.once:
+    if parsed_args.once:
         with open('gbh/mmif.json') as mmif_in:
             mmif_str = mmif_in.read()
 
         kaldi_app = Kaldi()
 
-        mmif_out = kaldi_app.annotate(mmif_str, run_kaldi=args.no_kaldi)
+        mmif_out = kaldi_app.annotate(mmif_str, run_kaldi=parsed_args.no_kaldi, pretty=parsed_args.pretty)
         with open('mmif_out.json', 'w') as out_file:
-            out_file.write(mmif_out.serialize(pretty=True))
-
+            out_file.write(mmif_out)
     else:
         kaldi_app = Kaldi()
+        annotate = kaldi_app.annotate
+        kaldi_app.annotate = lambda *args, **kwargs: annotate(*args,
+                                                              run_kaldi=parsed_args.no_kaldi,
+                                                              pretty=parsed_args.pretty)
         kaldi_service = Restifier(kaldi_app)
         kaldi_service.run()
