@@ -48,7 +48,7 @@ class Kaldi(ClamsApp):
             mmif = Mmif(mmif)
         return len(mmif.get_documents_locations(DocumentTypes.AudioDocument.value)) > 0
 
-    def annotate(self, mmif: Union[str, dict, Mmif], run_kaldi=True) -> Mmif:
+    def annotate(self, mmif: Union[str, dict, Mmif], run_kaldi=True, pretty=False) -> str:
         mmif_obj: Mmif
         if isinstance(mmif, Mmif):
             mmif_obj: Mmif = mmif
@@ -101,7 +101,7 @@ class Kaldi(ClamsApp):
                 view.add_annotation(tf)
                 view.add_annotation(align)
 
-        return mmif_obj
+        return mmif_obj.serialize(pretty=pretty)
 
     @staticmethod
     def index_and_join_tokens(tokens: Sequence[str]) -> Tuple[List[Tuple[int, int]], str]:
