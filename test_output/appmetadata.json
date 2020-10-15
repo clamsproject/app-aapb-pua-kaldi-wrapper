@@ -3,7 +3,7 @@
   "description": "This tool wraps the Kaldi ASR tool",
   "vendor": "Team CLAMS",
   "iri": "http://mmif.clams.ai/apps/kaldi/${version}",
-  "requires": ["http://mmif.clams.ai/HEAD/vocabulary/AudioDocument"],
+  "requires": ["http://mmif.clams.ai/${specver}/vocabulary/AudioDocument"],
   "produces": [
     "http://mmif.clams.ai/${specver}/vocabulary/TextDocument",
     "http://mmif.clams.ai/${specver}/vocabulary/TimeFrame",
