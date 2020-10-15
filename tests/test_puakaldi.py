@@ -38,7 +38,7 @@ class TestKaldiApp(unittest.TestCase):
     def test_annotate(self):
         self.kaldi_app.annotate(self.mmif_str, run_kaldi=False)
 
-    @unittest.skip
+    @unittest.skip("test broken by mmif bug, not critical")
     def test_in_place_annotate(self):
         string_annotate = self.kaldi_app.annotate(self.mmif_str, run_kaldi=False)
         mmif_obj = Mmif(self.mmif_str)
