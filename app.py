@@ -213,7 +213,7 @@ if __name__ == '__main__':
     parsed_args = parser.parse_args()
 
     if parsed_args.once:
-        with open('gbh/mmif.json') as mmif_in:
+        with open(parsed_args.once) as mmif_in:
             mmif_str = mmif_in.read()
 
         kaldi_app = Kaldi()
