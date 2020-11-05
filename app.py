@@ -182,8 +182,8 @@ def kaldi(files: list) -> None:
     # Because step 1, 2, 4, 5 are not necessary, we are bypassing `run_kaldi.py` and directly call the main kaldi pipeline (run.sh)
 
     for audio_name in files: 
-        audio_basename = os.path.splitext(os.paht.basename(audio_name))[0]
-        subprocess.run(['ffmpeg', '-i', link, '-ac', '1', '-ar', '16000',
+        audio_basename = os.path.splitext(os.path.basename(audio_name))[0]
+        subprocess.run(['ffmpeg', '-i', audio_name, '-ac', '1', '-ar', '16000',
                          f'{audio_tmpdir.name}/{audio_basename}_16kHz.wav'])
         subprocess.run([
             f'{KALDI_EXPERIMENT_DIR}/run.sh', 
