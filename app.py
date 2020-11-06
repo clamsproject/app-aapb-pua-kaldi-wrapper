@@ -22,6 +22,7 @@ TOKEN_PREFIX = 't'
 TEXT_DOCUMENT_PREFIX = 'td'
 TIME_FRAME_PREFIX = 'tf'
 ALIGNMENT_PREFIX = 'a'
+TRANSCRIPT_DIR = "output"
 
 
 class Kaldi(ClamsApp):
@@ -66,13 +67,19 @@ class Kaldi(ClamsApp):
         # TODO (angus-lherrou @ 2020-10-03): allow duplicate basenames for files originally from different folders
         #  by renaming files more descriptively
 
+
+        transcript_tmpdir = None
         if run_kaldi:
             transcript_tmpdir = kaldi(files)
+            transcripts = transcript_tmpdir.name
+        else:
+            transcripts = TRANSCRIPT_DIR
+
 
         # get Kaldi's output
         json_transcripts: Dict[str, dict] = {}
-        for transcript in os.listdir(transcript_tmpdir.name):
-            with open(os.path.join(transcript_tmpdir.name, transcript), encoding='utf8') as json_file:
+        for transcript in os.listdir(transcripts):
+            with open(os.path.join(transcripts, transcript), encoding='utf8') as json_file:
                 filename = os.path.splitext(transcript)[0]
                 if filename.endswith('_16kHz'):
                     filename = filename[:-6]
@@ -99,7 +106,8 @@ class Kaldi(ClamsApp):
                 view.add_annotation(tf)
                 view.add_annotation(align)
 
-        transcript_tmpdir.cleanup()
+        if transcript_tmpdir:
+            transcript_tmpdir.cleanup()
         return mmif_obj.serialize(pretty=pretty)
 
     @staticmethod
@@ -166,7 +174,7 @@ class Kaldi(ClamsApp):
         view.new_contain(AnnotationTypes.Alignment.value)
 
 
-def kaldi(files: list) -> None:
+def kaldi(files: list) -> tempfile.TemporaryDirectory:
 
     # make a temporary dir for kaldi-ready audio files
     audio_tmpdir = tempfile.TemporaryDirectory()
@@ -179,7 +187,7 @@ def kaldi(files: list) -> None:
     # 3. create `output` in the KALDI_EXPERIMENT_DIR
     # 4. for each wav_file, $(KALDI_EXPERIMENT_DIR/run.sh $wav_file $out_json_file)
     # 5. convert json into plain txt transcript
-    # Because step 1, 2, 4, 5 are not necessary, we are bypassing `run_kaldi.py` and directly call the main kaldi pipeline (run.sh)
+    # Because step 1, 2, 3, 5 are not necessary, we are bypassing `run_kaldi.py` and directly call the main kaldi pipeline (run.sh)
 
     for audio_name in files: 
         audio_basename = os.path.splitext(os.path.basename(audio_name))[0]
