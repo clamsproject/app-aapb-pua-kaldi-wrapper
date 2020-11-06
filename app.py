@@ -8,23 +8,21 @@ import shutil
 import subprocess
 from typing import Dict, Sequence, Tuple, List, Union
 import argparse
+import tempfile
 
 from clams import ClamsApp, Restifier
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes, Text
 from lapps.discriminators import Uri
 
-MEDIA_DIRECTORY = '/audio_in'
-MEDIA_DIRECTORY_16KHZ = '/audio_in_16khz'
 KALDI_AMERICAN_ARCHIVE = '/kaldi/egs/american-archive-kaldi'
 KALDI_EXPERIMENT_DIR = os.path.join(KALDI_AMERICAN_ARCHIVE, 'sample_experiment')
-KALDI_OUTPUT_DIR = os.path.join(KALDI_EXPERIMENT_DIR, 'output')
-TRANSCRIPT_DIR = os.path.join(MEDIA_DIRECTORY, 'transcripts', 'output')
 APP_VERSION = '0.1.0'
 WRAPPED_IMAGE = 'hipstas/kaldi-pop-up-archive:v1'
 TOKEN_PREFIX = 't'
 TEXT_DOCUMENT_PREFIX = 'td'
 TIME_FRAME_PREFIX = 'tf'
 ALIGNMENT_PREFIX = 'a'
+TRANSCRIPT_DIR = "output"
 
 
 class Kaldi(ClamsApp):
@@ -69,14 +67,19 @@ class Kaldi(ClamsApp):
         # TODO (angus-lherrou @ 2020-10-03): allow duplicate basenames for files originally from different folders
         #  by renaming files more descriptively
 
+
+        transcript_tmpdir = None
         if run_kaldi:
-            # run setup
-            setup(files)
+            transcript_tmpdir = kaldi(files)
+            transcripts = transcript_tmpdir.name
+        else:
+            transcripts = TRANSCRIPT_DIR
+
 
         # get Kaldi's output
         json_transcripts: Dict[str, dict] = {}
-        for transcript in os.listdir(os.path.join(TRANSCRIPT_DIR, 'json')):
-            with open(os.path.join(TRANSCRIPT_DIR, 'json', transcript), encoding='utf8') as json_file:
+        for transcript in os.listdir(transcripts):
+            with open(os.path.join(transcripts, transcript), encoding='utf8') as json_file:
                 filename = os.path.splitext(transcript)[0]
                 if filename.endswith('_16kHz'):
                     filename = filename[:-6]
@@ -103,6 +106,8 @@ class Kaldi(ClamsApp):
                 view.add_annotation(tf)
                 view.add_annotation(align)
 
+        if transcript_tmpdir:
+            transcript_tmpdir.cleanup()
         return mmif_obj.serialize(pretty=pretty)
 
     @staticmethod
@@ -169,32 +174,32 @@ class Kaldi(ClamsApp):
         view.new_contain(AnnotationTypes.Alignment.value)
 
 
-def setup(files: list) -> None:
-    links = [os.path.join(MEDIA_DIRECTORY, os.path.basename(file)) for file in files]
+def kaldi(files: list) -> tempfile.TemporaryDirectory:
 
-    # make 16khz directory
-    os.mkdir(MEDIA_DIRECTORY_16KHZ)
+    # make a temporary dir for kaldi-ready audio files
+    audio_tmpdir = tempfile.TemporaryDirectory()
+    # make another temporary dir to store resulting .json files
+    trans_tmpdir = tempfile.TemporaryDirectory()
 
-    # copy these files to MEDIA_DIRECTORY
-    for file, link in zip(files, links):
-        shutil.copy(file, link)
-        clipped_name = link[:-4]
-        subprocess.run(['ffmpeg', '-i', link, '-ac', '1', '-ar', '16000',
-                         f'{clipped_name}_16kHz.wav'])
-        subprocess.run(['mv', f'{clipped_name}_16kHz.wav', MEDIA_DIRECTORY_16KHZ])
+    # Steve's kaldi wrapper (run_kaldi.py) does: 
+    # 1. cd to KALDI_EXPERIMENT_DIR
+    # 2. validate necessary files 
+    # 3. create `output` in the KALDI_EXPERIMENT_DIR
+    # 4. for each wav_file, $(KALDI_EXPERIMENT_DIR/run.sh $wav_file $out_json_file)
+    # 5. convert json into plain txt transcript
+    # Because step 1, 2, 3, 5 are not necessary, we are bypassing `run_kaldi.py` and directly call the main kaldi pipeline (run.sh)
 
-    # run Kaldi
-    subprocess.run([
-        'python', os.path.join(KALDI_AMERICAN_ARCHIVE, 'run_kaldi.py'),  # this is a Python 2 call
-        KALDI_EXPERIMENT_DIR, MEDIA_DIRECTORY_16KHZ
-    ])
-
-    # copy Kaldi transcripts into
-    subprocess.run([
-        'rsync', '-a', KALDI_OUTPUT_DIR, os.path.join(MEDIA_DIRECTORY, 'transcripts')
-    ])
-    subprocess.run(['rm', '-r', MEDIA_DIRECTORY_16KHZ])
-
+    for audio_name in files: 
+        audio_basename = os.path.splitext(os.path.basename(audio_name))[0]
+        subprocess.run(['ffmpeg', '-i', audio_name, '-ac', '1', '-ar', '16000',
+                         f'{audio_tmpdir.name}/{audio_basename}_16kHz.wav'])
+        subprocess.run([
+            f'{KALDI_EXPERIMENT_DIR}/run.sh', 
+            f'{audio_tmpdir.name}/{audio_basename}_16kHz.wav', 
+            f'{trans_tmpdir.name}/{audio_basename}.json'
+            ])
+    audio_tmpdir.cleanup()
+    return trans_tmpdir
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
