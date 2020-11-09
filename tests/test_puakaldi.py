@@ -52,7 +52,7 @@ class TestAnnotation(unittest.TestCase):
     def setUp(self) -> None:
         self.kaldi_app = app.Kaldi()
         self.test_output = []
-        app.TRANSCRIPT_DIR = 'test_output'
+        app.TRANSCRIPT_DIR = 'test_output/json'
         completed_process = subprocess.run(
             [
                 'clams',
