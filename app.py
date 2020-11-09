@@ -4,7 +4,6 @@
 
 import json
 import os
-import shutil
 import subprocess
 from typing import Dict, Sequence, Tuple, List, Union
 import argparse
@@ -23,6 +22,19 @@ TEXT_DOCUMENT_PREFIX = 'td'
 TIME_FRAME_PREFIX = 'tf'
 ALIGNMENT_PREFIX = 'a'
 TRANSCRIPT_DIR = "output"
+
+__ALL__ = [
+    "KALDI_AMERICAN_ARCHIVE",
+    "KALDI_EXPERIMENT_DIR",
+    "WRAPPED_IMAGE",
+    "TOKEN_PREFIX",
+    "TEXT_DOCUMENT_PREFIX",
+    "TIME_FRAME_PREFIX",
+    "ALIGNMENT_PREFIX",
+    "TRANSCRIPT_DIR",
+    "Kaldi",
+    "kaldi"
+]
 
 
 class Kaldi(ClamsApp):
@@ -201,7 +213,8 @@ def kaldi(files: list) -> tempfile.TemporaryDirectory:
     audio_tmpdir.cleanup()
     return trans_tmpdir
 
-if __name__ == '__main__':
+
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--once',
                         type=str,
@@ -234,3 +247,7 @@ if __name__ == '__main__':
                                                               pretty=parsed_args.pretty)
         kaldi_service = Restifier(kaldi_app)
         kaldi_service.run()
+
+
+if __name__ == '__main__':
+    main()
