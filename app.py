@@ -23,7 +23,7 @@ TIME_FRAME_PREFIX = 'tf'
 ALIGNMENT_PREFIX = 'a'
 TRANSCRIPT_DIR = "output"
 
-__ALL__ = [
+__all__ = [
     "KALDI_AMERICAN_ARCHIVE",
     "KALDI_EXPERIMENT_DIR",
     "WRAPPED_IMAGE",
