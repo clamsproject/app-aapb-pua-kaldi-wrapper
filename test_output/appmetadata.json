@@ -1,0 +1,14 @@
+{
+  "name": "Kaldi Wrapper",
+  "description": "This tool wraps the Kaldi ASR tool",
+  "vendor": "Team CLAMS",
+  "iri": "http://mmif.clams.ai/apps/kaldi/${version}",
+  "wrappee": "${wrappee}",
+  "requires": ["http://mmif.clams.ai/${specver}/vocabulary/AudioDocument"],
+  "produces": [
+    "http://mmif.clams.ai/${specver}/vocabulary/TextDocument",
+    "http://mmif.clams.ai/${specver}/vocabulary/TimeFrame",
+    "http://mmif.clams.ai/${specver}/vocabulary/Alignment",
+    "http://vocab.lappsgrid.org/Token"
+  ]
+}

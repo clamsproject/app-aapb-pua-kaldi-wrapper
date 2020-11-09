@@ -1,0 +1,6 @@
+test_output/
+tests/
+.git/
+.gitignore
+.dockerignore
+Dockerfile

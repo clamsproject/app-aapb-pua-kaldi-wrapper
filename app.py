@@ -1,44 +1,74 @@
+# app-puakaldi-wrapper version 0.1.0
+# author: Angus L'Herrou
+# org: CLAMS team
+
 import json
-import os, shutil
+import os
 import subprocess
-from typing import Dict
+from typing import Dict, Sequence, Tuple, List, Union
+import argparse
+import tempfile
 
 from clams import ClamsApp, Restifier
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes, Text
+from lapps.discriminators import Uri
 
-KALDI_MEDIA_DIRECTORY = '/audio-in'
-KALDI_16KHZ_DIRECTORY = '/audio_in_16khz'
-KALDI_EXPERIMENT_DIR = '/kaldi/egs/american-archive-kaldi/sample_experiment'
-KALDI_OUTPUT_DIR = os.path.join(KALDI_EXPERIMENT_DIR, 'output')
-KALDI_VERSION = 'IDK'
+KALDI_AMERICAN_ARCHIVE = '/kaldi/egs/american-archive-kaldi'
+KALDI_EXPERIMENT_DIR = os.path.join(KALDI_AMERICAN_ARCHIVE, 'sample_experiment')
+APP_VERSION = '0.1.0'
+WRAPPED_IMAGE = 'hipstas/kaldi-pop-up-archive:v1'
+TOKEN_PREFIX = 't'
 TEXT_DOCUMENT_PREFIX = 'td'
 TIME_FRAME_PREFIX = 'tf'
 ALIGNMENT_PREFIX = 'a'
+TRANSCRIPT_DIR = "output"
+
+__ALL__ = [
+    "KALDI_AMERICAN_ARCHIVE",
+    "KALDI_EXPERIMENT_DIR",
+    "WRAPPED_IMAGE",
+    "TOKEN_PREFIX",
+    "TEXT_DOCUMENT_PREFIX",
+    "TIME_FRAME_PREFIX",
+    "ALIGNMENT_PREFIX",
+    "TRANSCRIPT_DIR",
+    "Kaldi",
+    "kaldi"
+]
 
 
 class Kaldi(ClamsApp):
-    def appmetadata(self):
-        metadata = {
+
+    def setupmetadata(self) -> dict:
+        return {
             "name": "Kaldi Wrapper",
             "description": "This tool wraps the Kaldi ASR tool",
             "vendor": "Team CLAMS",
-            "iri": f"http://mmif.clams.ai/apps/kaldi/{KALDI_VERSION}",
-            "requires": [DocumentTypes.AudioDocument],
-            "produces": [DocumentTypes.TextDocument, AnnotationTypes.TimeFrame, AnnotationTypes.Alignment]
+            "iri": f"http://mmif.clams.ai/apps/kaldi/{APP_VERSION}",
+            "wrappee": WRAPPED_IMAGE,
+            "requires": [DocumentTypes.AudioDocument.value],
+            "produces": [
+                DocumentTypes.TextDocument.value,
+                AnnotationTypes.TimeFrame.value,
+                AnnotationTypes.Alignment.value,
+                Uri.TOKEN
+            ]
         }
-        return metadata
 
     def sniff(self, mmif) -> bool:
         if type(mmif) is not Mmif:
             mmif = Mmif(mmif)
         return len(mmif.get_documents_locations(DocumentTypes.AudioDocument.value)) > 0
 
-    def annotate(self, mmif) -> Mmif:
-        if type(mmif) is not Mmif:
-            mmif = Mmif(mmif)
+    def annotate(self, mmif: Union[str, dict, Mmif], run_kaldi=True, pretty=False) -> str:
+        mmif_obj: Mmif
+        if isinstance(mmif, Mmif):
+            mmif_obj: Mmif = mmif
+        else:
+            mmif_obj: Mmif = Mmif(mmif)
 
         # get AudioDocuments with locations
-        docs = [document for document in mmif.documents
+        docs = [document for document in mmif_obj.documents
                 if document.at_type == DocumentTypes.AudioDocument.value and len(document.location) > 0]
 
         files = [document.location for document in docs]
@@ -49,46 +79,87 @@ class Kaldi(ClamsApp):
         # TODO (angus-lherrou @ 2020-10-03): allow duplicate basenames for files originally from different folders
         #  by renaming files more descriptively
 
-        # run setup
-        setup(files)
+
+        transcript_tmpdir = None
+        if run_kaldi:
+            transcript_tmpdir = kaldi(files)
+            transcripts = transcript_tmpdir.name
+        else:
+            transcripts = TRANSCRIPT_DIR
+
 
         # get Kaldi's output
         json_transcripts: Dict[str, dict] = {}
-        for transcript in os.listdir(os.path.join(KALDI_OUTPUT_DIR, 'json')):
-            with open(os.path.join(KALDI_OUTPUT_DIR, 'json', transcript), encoding='utf8') as json_file:
-                json_transcripts[os.path.splitext(transcript)[0]] = json.load(json_file)
+        for transcript in os.listdir(transcripts):
+            with open(os.path.join(transcripts, transcript), encoding='utf8') as json_file:
+                filename = os.path.splitext(transcript)[0]
+                if filename.endswith('_16kHz'):
+                    filename = filename[:-6]
+                json_transcripts[filename] = json.load(json_file)
 
         assert sorted(docs_dict.keys()) == sorted(json_transcripts.keys()), 'got a transcript for every file'
 
         for basename, transcript in json_transcripts.items():
             # convert transcript to MMIF view
-            view: View = mmif.new_view()
+            view: View = mmif_obj.new_view()
             self.stamp_view(view, docs_dict[basename].id)
+            # index and join tokens
+            indices, doc = self.index_and_join_tokens([token['word'] for token in transcript['words']])
             # make annotations
+            td = self.create_td(doc, 0)
+            view.add_document(td)
+            align_1 = self.create_align(docs_dict[basename], td, 0)
+            view.add_annotation(align_1)
             for index, word_obj in enumerate(transcript['words']):
-                td = self.create_td(word_obj['word'], index)
                 tf = self.create_tf(word_obj['time'], word_obj['duration'], index)
-                align = self.create_align(td, tf, index)
-                view.add_document(td)
+                token = self.create_token(word_obj['word'], index, indices, f'{view.id}:{td.id}')
+                align = self.create_align(tf, token, index+1)  # one more alignment than the others
+                view.add_annotation(token)
                 view.add_annotation(tf)
                 view.add_annotation(align)
 
-        return mmif
+        if transcript_tmpdir:
+            transcript_tmpdir.cleanup()
+        return mmif_obj.serialize(pretty=pretty)
 
     @staticmethod
-    def create_td(word: str, index: int) -> Document:
+    def index_and_join_tokens(tokens: Sequence[str]) -> Tuple[List[Tuple[int, int]], str]:
+        position = 0
+        indices: List[Tuple[int, int]] = []
+        for token in tokens:
+            start = position
+            position += len(token)
+            end = position
+            position += 1
+            indices.append((start, end))
+        doc = ' '.join(tokens)
+        return indices, doc
+
+    @staticmethod
+    def create_td(doc: str, index: int) -> Document:
         text = Text()
-        text.value = word
+        text.value = doc
         td = Document()
-        td.at_type = DocumentTypes.TextDocument
         td.id = TEXT_DOCUMENT_PREFIX + str(index + 1)
+        td.at_type = DocumentTypes.TextDocument.value
         td.properties.text = text
         return td
 
     @staticmethod
+    def create_token(word: str, index: int, indices: List[Tuple[int, int]], source_doc_id: str) -> Annotation:
+        token = Annotation()
+        token.at_type = Uri.TOKEN
+        token.id = TOKEN_PREFIX + str(index + 1)
+        token.add_property('word', word)
+        token.add_property('start', indices[index][0])
+        token.add_property('end', indices[index][1])
+        token.add_property('document', source_doc_id)
+        return token
+
+    @staticmethod
     def create_tf(time: float, duration: str, index: int) -> Annotation:
         tf = Annotation()
-        tf.at_type = AnnotationTypes.TimeFrame
+        tf.at_type = AnnotationTypes.TimeFrame.value
         tf.id = TIME_FRAME_PREFIX + str(index + 1)
         tf.properties['frameType'] = 'speech'
         # times should be in milliseconds
@@ -97,46 +168,86 @@ class Kaldi(ClamsApp):
         return tf
 
     @staticmethod
-    def create_align(td: Document, tf: Annotation, index: int) -> Annotation:
+    def create_align(source: Annotation, target: Annotation, index: int) -> Annotation:
         align = Annotation()
-        align.at_type = AnnotationTypes.Alignment
+        align.at_type = AnnotationTypes.Alignment.value
         align.id = ALIGNMENT_PREFIX + str(index + 1)
-        align.properties['source'] = tf.id
-        align.properties['target'] = td.id
+        align.properties['source'] = source.id
+        align.properties['target'] = target.id
         return align
 
     def stamp_view(self, view: View, tf_source_id: str) -> None:
         if view.is_frozen():
             raise ValueError("can't modify an old view")
-        view.metadata['app'] = self.appmetadata()['iri']
-        view.new_contain(DocumentTypes.TextDocument)
-        view.new_contain(AnnotationTypes.TimeFrame, {'unit': 'milliseconds', 'document': tf_source_id})
-        view.new_contain(AnnotationTypes.Alignment)
+        view.metadata['app'] = self.metadata['iri']
+        view.new_contain(DocumentTypes.TextDocument.value)
+        view.new_contain(Uri.TOKEN)
+        view.new_contain(AnnotationTypes.TimeFrame.value, {'unit': 'milliseconds', 'document': tf_source_id})
+        view.new_contain(AnnotationTypes.Alignment.value)
 
 
-def setup(files: list) -> None:
-    links = [os.path.join(KALDI_MEDIA_DIRECTORY, os.path.basename(file)) for file in files]
+def kaldi(files: list) -> tempfile.TemporaryDirectory:
 
-    # make 16khz directory
-    os.mkdir(KALDI_16KHZ_DIRECTORY)
+    # make a temporary dir for kaldi-ready audio files
+    audio_tmpdir = tempfile.TemporaryDirectory()
+    # make another temporary dir to store resulting .json files
+    trans_tmpdir = tempfile.TemporaryDirectory()
 
-    # symlink these files to KALDI_MEDIA_DIRECTORY
-    for file, link in zip(files, links):
-        shutil.copy(file, link)
-        clipped_name = link[:-4]
-        subprocess.call(['ffmpeg', '-i', link, '-ac', '1', '-ar', '16000',
-                         os.path.join(KALDI_16KHZ_DIRECTORY, f'{clipped_name}_16kHz.wav')])
+    # Steve's kaldi wrapper (run_kaldi.py) does: 
+    # 1. cd to KALDI_EXPERIMENT_DIR
+    # 2. validate necessary files 
+    # 3. create `output` in the KALDI_EXPERIMENT_DIR
+    # 4. for each wav_file, $(KALDI_EXPERIMENT_DIR/run.sh $wav_file $out_json_file)
+    # 5. convert json into plain txt transcript
+    # Because step 1, 2, 3, 5 are not necessary, we are bypassing `run_kaldi.py` and directly call the main kaldi pipeline (run.sh)
 
-    subprocess.call([
-        'python', '/kaldi/egs/american-archive-kaldi/run_kaldi.py',
-        KALDI_EXPERIMENT_DIR, '/audio_in_16khz/',
-        '&&',
-        'rsync', '-a', '/kaldi/egs/american-archive-kaldi/sample_experiment/output/', '/audio_in/transcripts/'
-    ])
-    subprocess.call(['rm', '-r', KALDI_16KHZ_DIRECTORY])
+    for audio_name in files: 
+        audio_basename = os.path.splitext(os.path.basename(audio_name))[0]
+        subprocess.run(['ffmpeg', '-i', audio_name, '-ac', '1', '-ar', '16000',
+                         f'{audio_tmpdir.name}/{audio_basename}_16kHz.wav'])
+        subprocess.run([
+            f'{KALDI_EXPERIMENT_DIR}/run.sh', 
+            f'{audio_tmpdir.name}/{audio_basename}_16kHz.wav', 
+            f'{trans_tmpdir.name}/{audio_basename}.json'
+            ])
+    audio_tmpdir.cleanup()
+    return trans_tmpdir
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--once',
+                        type=str,
+                        metavar='PATH',
+                        help='Use this flag if you want to run Kaldi on a path you specify, instead of running '
+                             'the Flask app.')
+    parser.add_argument('--no-kaldi',
+                        action='store_false',
+                        help='Add this flag if Kaldi has already been run and you just want to re-annotate.')
+    parser.add_argument('--pretty',
+                        action='store_true',
+                        help='Use this flag to return "pretty" (indented) MMIF data.')
+
+    parsed_args = parser.parse_args()
+
+    if parsed_args.once:
+        with open(parsed_args.once) as mmif_in:
+            mmif_str = mmif_in.read()
+
+        kaldi_app = Kaldi()
+
+        mmif_out = kaldi_app.annotate(mmif_str, run_kaldi=parsed_args.no_kaldi, pretty=parsed_args.pretty)
+        with open('mmif_out.json', 'w') as out_file:
+            out_file.write(mmif_out)
+    else:
+        kaldi_app = Kaldi()
+        annotate = kaldi_app.annotate
+        kaldi_app.annotate = lambda *args, **kwargs: annotate(*args,
+                                                              run_kaldi=parsed_args.no_kaldi,
+                                                              pretty=parsed_args.pretty)
+        kaldi_service = Restifier(kaldi_app)
+        kaldi_service.run()
 
 
 if __name__ == '__main__':
-    kaldi_tool = Kaldi()
-    spacy_service = Restifier(kaldi_tool)
-    spacy_service.run()
+    main()

@@ -1,1 +1,2 @@
-clams-python
+clams-python~=0.1.5
+lapps~=0.0.2
