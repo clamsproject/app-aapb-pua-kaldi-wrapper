@@ -1,4 +1,5 @@
-FROM hipstas/kaldi-pop-up-archive:v1
+FROM brandeisllc/aapb-pua-kaldi:v1
+# which has python3.7
 
 LABEL maintainer="Angus L'Herrou <piraka@brandeis.edu>"
 
