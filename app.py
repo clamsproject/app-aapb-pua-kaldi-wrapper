@@ -21,6 +21,7 @@ TIME_FRAME_PREFIX = 'tf'
 ALIGNMENT_PREFIX = 'a'
 TRANSCRIPT_DIR = "output"
 
+
 __ALL__ = [
     "WRAPPED_IMAGE",
     "TOKEN_PREFIX",
