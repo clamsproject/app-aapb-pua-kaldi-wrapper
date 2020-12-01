@@ -2,6 +2,7 @@
 # author: Angus L'Herrou
 # org: CLAMS team
 
+import ffmpeg
 import json
 import os
 import subprocess
@@ -70,7 +71,7 @@ class Kaldi(ClamsApp):
         docs = [document for document in mmif_obj.documents
                 if document.at_type == DocumentTypes.AudioDocument.value and len(document.location) > 0]
 
-        files = [document.location for document in docs]
+        files = {doc.id: doc.location for doc in docs}
 
         # key them by location basenames
         docs_dict: Dict[str, Document] = {os.path.splitext(os.path.basename(doc.location))[0]: doc for doc in docs}
@@ -88,51 +89,37 @@ class Kaldi(ClamsApp):
 
 
         # get Kaldi's output
-        json_transcripts: Dict[str, dict] = {}
-        for transcript in os.listdir(transcripts):
-            with open(os.path.join(transcripts, transcript), encoding='utf8') as json_file:
-                filename = os.path.splitext(transcript)[0]
-                if filename.endswith('_16kHz'):
-                    filename = filename[:-6]
-                json_transcripts[filename] = json.load(json_file)
-
-        assert sorted(docs_dict.keys()) == sorted(json_transcripts.keys()), 'got a transcript for every file'
-
-        for basename, transcript in json_transcripts.items():
-            # convert transcript to MMIF view
-            view: View = mmif_obj.new_view()
-            self.stamp_view(view, docs_dict[basename].id)
-            # index and join tokens
-            indices, doc = self.index_and_join_tokens([token['word'] for token in transcript['words']])
-            # make annotations
-            td = self.create_td(doc, 0)
-            view.add_document(td)
-            align_1 = self.create_align(docs_dict[basename], td, 0)
-            view.add_annotation(align_1)
-            for index, word_obj in enumerate(transcript['words']):
-                tf = self.create_tf(word_obj['time'], word_obj['duration'], index)
-                token = self.create_token(word_obj['word'], index, indices, f'{view.id}:{td.id}')
-                align = self.create_align(tf, token, index+1)  # one more alignment than the others
-                view.add_annotation(token)
-                view.add_annotation(tf)
-                view.add_annotation(align)
+        for transcript_fname in os.listdir(transcripts): # files names after the ID of the AudioDocs
+            with open(os.path.join(transcripts, transcript_fname), encoding='utf8') as json_file:
+                audiodoc_id = os.path.splitext(transcript_fname)[0]
+                transcript = json.load(json_file)
+                # convert transcript to MMIF view
+                view: View = mmif_obj.new_view()
+                self.stamp_view(view, audiodoc_id)
+                # join tokens
+                whitespace = ' '
+                raw_text = whitespace.join([token['word'] for token in transcript['words']])
+                # make annotations
+                textdoc = self.create_td(raw_text, 0)
+                view.add_document(textdoc)
+                align_1 = self.create_align(mmif_obj.get_document_by_id(audiodoc_id), textdoc, 0)
+                view.add_annotation(align_1)
+                position = 0
+                for index, word_obj in enumerate(transcript['words']):
+                    raw_token = word_obj['word']
+                    start = position
+                    end = start + len(raw_token)
+                    position += len(raw_token) + len(whitespace)
+                    tf = self.create_tf(word_obj['time'], word_obj['duration'], index)
+                    raw_token = self.create_token(word_obj['word'], index, start, end, f'{view.id}:{textdoc.id}')
+                    align = self.create_align(tf, raw_token, index+1)  # counting one for TextDoc-AudioDoc alignment
+                    view.add_annotation(raw_token)
+                    view.add_annotation(tf)
+                    view.add_annotation(align)
 
         if transcript_tmpdir:
             transcript_tmpdir.cleanup()
         return mmif_obj.serialize(pretty=pretty)
-
-    @staticmethod
-    def index_and_join_tokens(tokens: Sequence[str]) -> Tuple[List[Tuple[int, int]], str]:
-        position = 0
-        indices: List[Tuple[int, int]] = []
-        for token in tokens:
-            start = position
-            position += len(token)
-            end = position
-            position += 1
-            indices.append((start, end))
-        doc = ' '.join(tokens)
-        return indices, doc
 
     @staticmethod
     def create_td(doc: str, index: int) -> Document:
@@ -145,13 +132,13 @@ class Kaldi(ClamsApp):
         return td
 
     @staticmethod
-    def create_token(word: str, index: int, indices: List[Tuple[int, int]], source_doc_id: str) -> Annotation:
+    def create_token(word: str, index: int, start: int, end: int, source_doc_id: str) -> Annotation:
         token = Annotation()
         token.at_type = Uri.TOKEN
         token.id = TOKEN_PREFIX + str(index + 1)
         token.add_property('word', word)
-        token.add_property('start', indices[index][0])
-        token.add_property('end', indices[index][1])
+        token.add_property('start', str(start))
+        token.add_property('end', str(end))
         token.add_property('document', source_doc_id)
         return token
 
@@ -185,7 +172,8 @@ class Kaldi(ClamsApp):
         view.new_contain(AnnotationTypes.Alignment.value)
 
 
-def kaldi(files: list) -> tempfile.TemporaryDirectory:
+def kaldi(files: Dict[str, str]) -> tempfile.TemporaryDirectory:
+    # files has full path to files as keys and ID of the corresponding AudioDoc as values
 
     # make a temporary dir for kaldi-ready audio files
     audio_tmpdir = tempfile.TemporaryDirectory()
@@ -200,14 +188,15 @@ def kaldi(files: list) -> tempfile.TemporaryDirectory:
     # 5. convert json into plain txt transcript
     # Because step 1, 2, 3, 5 are not necessary, we are bypassing `run_kaldi.py` and directly call the main kaldi pipeline (run.sh)
 
-    for audio_name in files: 
-        audio_basename = os.path.splitext(os.path.basename(audio_name))[0]
-        subprocess.run(['ffmpeg', '-i', audio_name, '-ac', '1', '-ar', '16000',
-                         f'{audio_tmpdir.name}/{audio_basename}_16kHz.wav'])
+    for audio_docid, audio_fname in files.items():
+        resampled_audio_fname = f'{audio_tmpdir.name}/{audio_docid}_16kHz.wav'
+        result_transcript_fname = f'{trans_tmpdir.name}/{audio_docid}.json'
+        # resample to a single-channel, 16k wav file
+        ffmpeg.input(audio_fname).output(resampled_audio_fname, ac=1, ar=16000).run()
         subprocess.run([
             f'{kaldi_exp_dir(os.getenv("KALDI_ROOT")) if "KALDI_ROOT" in os.environ else "/opt/kaldi"}/run.sh', 
-            f'{audio_tmpdir.name}/{audio_basename}_16kHz.wav', 
-            f'{trans_tmpdir.name}/{audio_basename}.json'
+            resampled_audio_fname,
+            result_transcript_fname
             ])
     audio_tmpdir.cleanup()
     return trans_tmpdir
