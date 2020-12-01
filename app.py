@@ -13,19 +13,16 @@ from clams import ClamsApp, Restifier
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes, Text
 from lapps.discriminators import Uri
 
-KALDI_AMERICAN_ARCHIVE = '/kaldi/egs/american-archive-kaldi'
-KALDI_EXPERIMENT_DIR = os.path.join(KALDI_AMERICAN_ARCHIVE, 'sample_experiment')
 APP_VERSION = '0.1.0'
-WRAPPED_IMAGE = 'hipstas/kaldi-pop-up-archive:v1'
+WRAPPED_IMAGE = 'brandeisllc/aapb-pua-kaldi:v1'
 TOKEN_PREFIX = 't'
 TEXT_DOCUMENT_PREFIX = 'td'
 TIME_FRAME_PREFIX = 'tf'
 ALIGNMENT_PREFIX = 'a'
 TRANSCRIPT_DIR = "output"
 
-__all__ = [
-    "KALDI_AMERICAN_ARCHIVE",
-    "KALDI_EXPERIMENT_DIR",
+
+__ALL__ = [
     "WRAPPED_IMAGE",
     "TOKEN_PREFIX",
     "TEXT_DOCUMENT_PREFIX",
@@ -35,6 +32,9 @@ __all__ = [
     "Kaldi",
     "kaldi"
 ]
+
+def kaldi_exp_dir(kaldi_root):
+    return os.path.join(kaldi_root, 'egs', 'american-archive-kaldi', 'sample_experiment')
 
 
 class Kaldi(ClamsApp):
@@ -194,10 +194,10 @@ def kaldi(files: list) -> tempfile.TemporaryDirectory:
     trans_tmpdir = tempfile.TemporaryDirectory()
 
     # Steve's kaldi wrapper (run_kaldi.py) does: 
-    # 1. cd to KALDI_EXPERIMENT_DIR
+    # 1. cd to kaldi_exp_dir
     # 2. validate necessary files 
-    # 3. create `output` in the KALDI_EXPERIMENT_DIR
-    # 4. for each wav_file, $(KALDI_EXPERIMENT_DIR/run.sh $wav_file $out_json_file)
+    # 3. create `output` in the kaldi_exp_dir
+    # 4. for each wav_file, $(kaldi_exp_dir/run.sh $wav_file $out_json_file)
     # 5. convert json into plain txt transcript
     # Because step 1, 2, 3, 5 are not necessary, we are bypassing `run_kaldi.py` and directly call the main kaldi pipeline (run.sh)
 
@@ -206,7 +206,7 @@ def kaldi(files: list) -> tempfile.TemporaryDirectory:
         subprocess.run(['ffmpeg', '-i', audio_name, '-ac', '1', '-ar', '16000',
                          f'{audio_tmpdir.name}/{audio_basename}_16kHz.wav'])
         subprocess.run([
-            f'{KALDI_EXPERIMENT_DIR}/run.sh', 
+            f'{kaldi_exp_dir(os.getenv("KALDI_ROOT")) if "KALDI_ROOT" in os.environ else "/opt/kaldi"}/run.sh', 
             f'{audio_tmpdir.name}/{audio_basename}_16kHz.wav', 
             f'{trans_tmpdir.name}/{audio_basename}.json'
             ])
