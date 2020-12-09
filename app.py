@@ -232,8 +232,8 @@ class Kaldi(ClamsApp):
         token.at_type = Uri.TOKEN
         token.id = TOKEN_PREFIX + str(index + 1)
         token.add_property('word', word)
-        token.add_property('start', str(start))
-        token.add_property('end', str(end))
+        token.add_property('start', start)
+        token.add_property('end', end)
         token.add_property('document', source_doc_id)
         return token
 
