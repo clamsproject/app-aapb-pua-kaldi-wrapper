@@ -15,7 +15,7 @@ from clams import ClamsApp, Restifier
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes, Text
 from lapps.discriminators import Uri
 
-APP_VERSION = '0.1.0'
+__version__ = '0.2.0'
 WRAPPED_IMAGE = 'brandeisllc/aapb-pua-kaldi:v1'
 TOKEN_PREFIX = 't'
 TEXT_DOCUMENT_PREFIX = 'td'
@@ -48,12 +48,12 @@ def kaldi_exp_dir(kaldi_root):
 
 class Kaldi(ClamsApp):
 
-    def setupmetadata(self) -> dict:
+    def _appmetadata(self) -> dict:
         return {
             "name": "Kaldi Wrapper",
             "description": "This tool wraps the Kaldi ASR tool",
             "vendor": "Team CLAMS",
-            "iri": f"http://mmif.clams.ai/apps/kaldi/{APP_VERSION}",
+            "iri": f"http://mmif.clams.ai/apps/kaldi/{__version__}",
             "wrappee": WRAPPED_IMAGE,
             "requires": [DocumentTypes.AudioDocument.value],
             "produces": [
@@ -64,12 +64,7 @@ class Kaldi(ClamsApp):
             ]
         }
 
-    def sniff(self, mmif) -> bool:
-        if type(mmif) is not Mmif:
-            mmif = Mmif(mmif)
-        return len(mmif.get_documents_locations(DocumentTypes.AudioDocument.value)) > 0
-
-    def annotate(self, mmif: Union[str, dict, Mmif], run_kaldi=True, pretty=False) -> str:
+    def _annotate(self, mmif: Union[str, dict, Mmif], run_kaldi=True, use_segmentation=True) -> Mmif:
         mmif_obj: Mmif
         if isinstance(mmif, Mmif):
             mmif_obj: Mmif = mmif
@@ -84,20 +79,23 @@ class Kaldi(ClamsApp):
         trimming_tmpdir = tempfile.TemporaryDirectory()
 
         for doc in docs:
-            segment_views = [view for view in mmif_obj.get_views_for_document(doc.id) if AnnotationTypes.TimeFrame.value in view.metadata.contains]
-            if len(segment_views) > 1:
-                # TODO (krim @ 11/30/20): we might want to actually handle this situation; e.g. for evaluating multiple segmenter
-                raise ValueError('got multiple segmentation views for a document with TimeFrames')
-            elif len(segment_views) == 1:
-                view = segment_views[0]
-                segments = [(int(ann.properties['start']), int(ann.properties['end'])) for ann in view.get_annotations(AnnotationTypes.TimeFrame, frameType='speech')]
-                unit = view.metadata.contains[AnnotationTypes.TimeFrame.value]['unit']
-                trimmed_fname = os.path.join(trimming_tmpdir.name, doc.id + '.wav')
-                slice_and_merge_audio(trimmed_fname, doc.location, segments, unit=unit, silence_gap=SILENCE_GAP_LEN)
-                files[doc.id] = trimmed_fname
-                tf_src_view[doc.id] = view.id
+            if use_segmentation:
+                segment_views = [view for view in mmif_obj.get_views_for_document(doc.id) if AnnotationTypes.TimeFrame.value in view.metadata.contains]
+                if len(segment_views) > 1:
+                    # TODO (krim @ 11/30/20): we might want to actually handle this situation; e.g. for evaluating multiple segmenter
+                    raise ValueError('got multiple segmentation views for a document with TimeFrames')
+                elif len(segment_views) == 1:
+                    view = segment_views[0]
+                    segments = [(int(ann.properties['start']), int(ann.properties['end'])) for ann in view.get_annotations(AnnotationTypes.TimeFrame, frameType='speech')]
+                    unit = view.metadata.contains[AnnotationTypes.TimeFrame.value]['unit']
+                    trimmed_fname = os.path.join(trimming_tmpdir.name, doc.id + '.wav')
+                    slice_and_merge_audio(trimmed_fname, doc.location_path(), segments, unit=unit, silence_gap=SILENCE_GAP_LEN)
+                    files[doc.id] = trimmed_fname
+                    tf_src_view[doc.id] = view.id
+                elif len(segment_views) == 0:
+                    files[doc.id] = doc.location_path()
             else:
-                files[doc.id] = doc.location
+                files[doc.id] = doc.location_path()
 
         transcript_tmpdir = None
         if run_kaldi:
@@ -214,7 +212,7 @@ class Kaldi(ClamsApp):
         if transcript_tmpdir:
             transcript_tmpdir.cleanup()
         trimming_tmpdir.cleanup()
-        return mmif_obj.serialize(pretty=pretty)
+        return mmif_obj
 
     @staticmethod
     def create_td(doc: str, index: int) -> Document:
@@ -331,14 +329,10 @@ def main():
     parser.add_argument('--once',
                         type=str,
                         metavar='PATH',
-                        help='Use this flag if you want to run Kaldi on a path you specify, instead of running '
-                             'the Flask app.')
+                        help='Flag to run Kaldi on a specified MMIF, instead of running the Flask app.')
     parser.add_argument('--no-kaldi',
                         action='store_false',
                         help='Add this flag if Kaldi has already been run and you just want to re-annotate.')
-    parser.add_argument('--pretty',
-                        action='store_true',
-                        help='Use this flag to return "pretty" (indented) MMIF data.')
 
     parsed_args = parser.parse_args()
 
@@ -348,15 +342,14 @@ def main():
 
         kaldi_app = Kaldi()
 
-        mmif_out = kaldi_app.annotate(mmif_str, run_kaldi=parsed_args.no_kaldi, pretty=parsed_args.pretty)
+        mmif_out = kaldi_app.annotate(mmif_str, run_kaldi=parsed_args.no_kaldi)
         with open('mmif_out.json', 'w') as out_file:
             out_file.write(mmif_out)
     else:
         kaldi_app = Kaldi()
         annotate = kaldi_app.annotate
         kaldi_app.annotate = lambda *args, **kwargs: annotate(*args,
-                                                              run_kaldi=parsed_args.no_kaldi,
-                                                              pretty=parsed_args.pretty)
+                                                              run_kaldi=parsed_args.no_kaldi)
         kaldi_service = Restifier(kaldi_app)
         kaldi_service.run()
 
