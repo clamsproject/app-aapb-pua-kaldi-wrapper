@@ -11,7 +11,7 @@ from clams import ClamsApp, Restifier, AppMetadata
 from lapps.discriminators import Uri
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 
 
 class AAPB_PUA_Kaldi(ClamsApp):
