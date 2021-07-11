@@ -11,7 +11,7 @@ from clams import ClamsApp, Restifier, AppMetadata
 from lapps.discriminators import Uri
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes
 
-__version__ = '0.2.1'
+__version__ = '0.2.2'
 
 
 class AAPB_PUA_Kaldi(ClamsApp):
@@ -28,8 +28,8 @@ class AAPB_PUA_Kaldi(ClamsApp):
                         "found at https://github.com/brandeis-llc/aapb-pua-kaldi-docker . ",
             app_version=__version__, 
             wrappee_version="v2",
-            wrappee_license="unknown",
-            license="Apache2.0",
+            wrappee_license="UNKNOWN",
+            license="Apache 2.0",
             identifier=f"http://apps.clams.ai/aapb-pua-kaldi-wrapper/{__version__}", 
         )
         metadata.add_input(DocumentTypes.AudioDocument)
@@ -54,8 +54,9 @@ class AAPB_PUA_Kaldi(ClamsApp):
         docs = [document for document in mmif.documents
                 if document.at_type == DocumentTypes.AudioDocument and len(document.location) > 0]
         conf = self.get_configuration(**parameters)
+        use_speech_segmentation = conf.get('use_speech_segmentation', True)
 
-        if 'use_speech_segmentation' in conf and conf['use_speech_segmentation']:
+        if use_speech_segmentation:
             # using "speech" TimeFrames, `files` holds newly generated patchwork audio files in `tmpdir`
             files, tf_src_view, tmpdir = self._patchwork_audiofiles(mmif, docs)
         else:
@@ -332,6 +333,12 @@ class AAPB_PUA_Kaldi(ClamsApp):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        '--port',
+        action='store',
+        default='5000',
+        help='set port to listen'
+    )
+    parser.add_argument(
         '--production',
         action='store_true',
         help='run gunicorn server'
@@ -339,7 +346,7 @@ if __name__ == '__main__':
     parsed_args = parser.parse_args()
 
     puakaldi = AAPB_PUA_Kaldi()
-    puakaldi_flask = Restifier(puakaldi)
+    puakaldi_flask = Restifier(puakaldi, port=int(parsed_args.port))
     if parsed_args.production:
         puakaldi_flask.serve_production()
     else:
