@@ -11,7 +11,7 @@ from clams import ClamsApp, Restifier, AppMetadata
 from lapps.discriminators import Uri
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes
 
-__version__ = '0.2.2'
+__version__ = '0.2.3'
 
 
 class AAPB_PUA_Kaldi(ClamsApp):
@@ -27,7 +27,7 @@ class AAPB_PUA_Kaldi(ClamsApp):
                         "and later updated by Kyeongmin Rim at Brandeis University. Wrapped software can be "
                         "found at https://github.com/brandeis-llc/aapb-pua-kaldi-docker . ",
             app_version=__version__, 
-            wrappee_version="v2",
+            wrappee_version="v4",
             wrappee_license="UNKNOWN",
             license="Apache 2.0",
             identifier=f"http://apps.clams.ai/aapb-pua-kaldi-wrapper/{__version__}", 

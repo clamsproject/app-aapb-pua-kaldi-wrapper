@@ -1,5 +1,5 @@
-FROM brandeisllc/aapb-pua-kaldi:v2
-# which has python3.7
+FROM brandeisllc/aapb-pua-kaldi:v4
+# which has python3.9
 # may not want to do apt-get update if there are dependencies of
 # the Kaldi image that rely on older versions of apt packages
 RUN apt-get update && \
