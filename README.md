@@ -7,6 +7,8 @@ Requirements:
 - curl or some other utility to send of an HTTP request to the server
 - Python 3 with the clams-python module installed to create the MMIF input
 
+You probably need to change the Docker resources settings since the memory default is too low for running the code, it should be updated to at least 6GB, but more is better. 
+
 The simplest way to run this is to first pull two images, one with the Kaldi and Pop Up Archive models and one with the CLAMS wrapper (the latter is built on top of the former, so just the second pull should suffice):
 
 ```bash
