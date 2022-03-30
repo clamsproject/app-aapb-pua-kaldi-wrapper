@@ -11,7 +11,7 @@ from clams import ClamsApp, Restifier, AppMetadata
 from lapps.discriminators import Uri
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes
 
-__version__ = '0.2.3'
+__version__ = '0.2.4'
 
 
 class AAPB_PUA_Kaldi(ClamsApp):
@@ -27,10 +27,11 @@ class AAPB_PUA_Kaldi(ClamsApp):
                         "and later updated by Kyeongmin Rim at Brandeis University. Wrapped software can be "
                         "found at https://github.com/brandeis-llc/aapb-pua-kaldi-docker . ",
             app_version=__version__, 
-            wrappee_version="v4",
-            wrappee_license="UNKNOWN",
-            license="Apache 2.0",
+            analyzer_version="v4",
+            analyzer_license="UNKNOWN",
+            app_license="Apache 2.0",
             identifier=f"http://apps.clams.ai/aapb-pua-kaldi-wrapper/{__version__}", 
+            url="https://github.com/clamsproject/app-aapb-pua-kaldi-wrapper", 
         )
         metadata.add_input(DocumentTypes.AudioDocument)
         metadata.add_output(DocumentTypes.TextDocument)
@@ -178,6 +179,8 @@ class AAPB_PUA_Kaldi(ClamsApp):
                 raw_text = raw_token
             else:
                 raw_text = self.token_boundary.join((raw_text, raw_token))
+        if len(raw_text) > 0:
+            textdoc.text_value = raw_text
 
     def _align_segmentations_to_patchwork(self, speech_segment_annotations):
         speech_segments = [(ann.id, ann.properties['start'], ann.properties['end'])
