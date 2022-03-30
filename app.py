@@ -134,7 +134,8 @@ class AAPB_PUA_Kaldi(ClamsApp):
         raw_text = ""
         textdoc = self._create_td(view, raw_text)
         position = 0
-        for index, word_obj in enumerate(transcript['words']):
+        sorted_words = sorted(transcript['words'], key=lambda x:x['time'])
+        for index, word_obj in enumerate(sorted_words):
             # if index == len(transcript['words']):
             raw_token = word_obj['word']
             # this time point is bound to the "patchwork" audio stream
@@ -156,14 +157,14 @@ class AAPB_PUA_Kaldi(ClamsApp):
                 continue
 
             # when moved on to the next speech segment
-            if segment_num - 1 == cur_segment:
+            if segment_num > cur_segment:
                 # inject collected tokens into the text doc and finalize it
                 textdoc.text_value = raw_text
                 self._create_align(view, view_w_tf.annotations.get(segment_ids[cur_segment]), textdoc)
 
                 # reset stuff and start a new text doc
                 position = 0
-                cur_segment += 1
+                cur_segment = segment_num
                 raw_text = ""
                 textdoc = self._create_td(view, raw_text)
 
@@ -179,8 +180,8 @@ class AAPB_PUA_Kaldi(ClamsApp):
                 raw_text = raw_token
             else:
                 raw_text = self.token_boundary.join((raw_text, raw_token))
-        if len(raw_text) > 0:
-            textdoc.text_value = raw_text
+        textdoc.text_value = raw_text
+        self._create_align(view, view_w_tf.annotations.get(segment_ids[cur_segment]), textdoc)
 
     def _align_segmentations_to_patchwork(self, speech_segment_annotations):
         speech_segments = [(ann.id, ann.properties['start'], ann.properties['end'])
