@@ -7,44 +7,20 @@ import tempfile
 from typing import Dict, Sequence, Tuple, Union
 
 import ffmpeg
-from clams import ClamsApp, Restifier, AppMetadata
+from clams import ClamsApp, Restifier
 from lapps.discriminators import Uri
 from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes
 
-__version__ = '0.2.4'
+import metadata
 
 
 class AAPB_PUA_Kaldi(ClamsApp):
-    timeunit = 'milliseconds'
     token_boundary = ' '
     silence_gap = 1.0  # seconds to insert between segments when patchworking
     timeunit_conv = {'milliseconds': 1000, 'seconds': 1}
 
     def _appmetadata(self):
-        metadata = AppMetadata(
-            name="AAPB-PUA Kaldi Wrapper", 
-            description="A CLAMS wrapper for Kaldi-based ASR software originally developed by PopUpArchive and hipstas, "
-                        "and later updated by Kyeongmin Rim at Brandeis University. Wrapped software can be "
-                        "found at https://github.com/brandeis-llc/aapb-pua-kaldi-docker . ",
-            app_version=__version__, 
-            analyzer_version="v4",
-            analyzer_license="UNKNOWN",
-            app_license="Apache 2.0",
-            identifier=f"http://apps.clams.ai/aapb-pua-kaldi-wrapper/{__version__}", 
-            url="https://github.com/clamsproject/app-aapb-pua-kaldi-wrapper", 
-        )
-        metadata.add_input(DocumentTypes.AudioDocument)
-        metadata.add_output(DocumentTypes.TextDocument)
-        metadata.add_output(AnnotationTypes.TimeFrame, timeUnit=self.timeunit)
-        metadata.add_output(AnnotationTypes.Alignment)
-        metadata.add_output(Uri.TOKEN)
-        metadata.add_parameter(name="use_speech_segmentation", 
-                               type="boolean",
-                               description="When true, the app looks for existing TimeFrame { \"frameType\": "
-                                           "\"speech\" } annotations, and runs ASR only on those frames, instead of "
-                                           "entire audio files.",
-                               default="true")
-        return metadata
+        pass
 
     def _annotate(self, mmif: Union[str, dict, Mmif], **parameters) -> Mmif:
         # use_speech_segmentation=True) -> Mmif:
@@ -89,7 +65,7 @@ class AAPB_PUA_Kaldi(ClamsApp):
                 view.new_contain(DocumentTypes.TextDocument)
                 view.new_contain(Uri.TOKEN)
                 view.new_contain(AnnotationTypes.TimeFrame, 
-                                 timeUnit=self.timeunit,
+                                 timeUnit=metadata.timeunit,
                                  document=audiodoc_id)
                 view.new_contain(AnnotationTypes.Alignment)
                 if segmentataion_indices is None or len(segmentataion_indices) == 0:
@@ -120,8 +96,8 @@ class AAPB_PUA_Kaldi(ClamsApp):
             tok_end = tok_start + len(raw_token)
             char_offset += len(raw_token) + len(self.token_boundary)
             token = self._create_token(view, word_obj['word'], tok_start, tok_end, f'{view.id}:{textdoc.id}')
-            tf_start = int(word_obj['time'] * self.timeunit_conv[self.timeunit])
-            tf_end = int(float(word_obj['duration']) * self.timeunit_conv[self.timeunit]) + tf_start
+            tf_start = int(word_obj['time'] * self.timeunit_conv[metadata.timeunit])
+            tf_end = int(float(word_obj['duration']) * self.timeunit_conv[metadata.timeunit]) + tf_start
             tf = self._create_tf(view, tf_start, tf_end)
             self._create_align(view, tf, token)  # counting one for TextDoc-AudioDoc alignment
 
@@ -139,8 +115,8 @@ class AAPB_PUA_Kaldi(ClamsApp):
             # if index == len(transcript['words']):
             raw_token = word_obj['word']
             # this time point is bound to the "patchwork" audio stream
-            start_in_patchwork = word_obj['time'] * self.timeunit_conv[self.timeunit]
-            end_in_patchwork = float(word_obj['duration']) * self.timeunit_conv[self.timeunit] + start_in_patchwork
+            start_in_patchwork = word_obj['time'] * self.timeunit_conv[metadata.timeunit]
+            end_in_patchwork = float(word_obj['duration']) * self.timeunit_conv[metadata.timeunit] + start_in_patchwork
 
             # and count characters
             char_start = position
@@ -196,7 +172,7 @@ class AAPB_PUA_Kaldi(ClamsApp):
             if i == 0:
                 new_starts.append(0)
             else:
-                new_starts.append(new_ends[i-1] + self.silence_gap * self.timeunit_conv[self.timeunit])
+                new_starts.append(new_ends[i-1] + self.silence_gap * self.timeunit_conv[metadata.timeunit])
             new_ends.append(ori_ends[i] - ori_starts[i] + new_starts[i])
         return segment_ids, ori_starts, ori_ends, new_starts, new_ends
 

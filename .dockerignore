@@ -1,6 +1,10 @@
 test_output/
 tests/
 .git/
+.github/
 .gitignore
 .dockerignore
 Dockerfile
+*~
+**/*.pyc
+**/__pyche__

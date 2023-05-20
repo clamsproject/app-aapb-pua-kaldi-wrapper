@@ -1,3 +1,2 @@
-clams-python==0.5.1
-lapps~=0.0.2
+clams-python==0.6.2
 ffmpeg-python==0.2.0
