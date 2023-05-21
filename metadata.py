@@ -28,12 +28,11 @@ def appmetadata() -> AppMetadata:
                     "and later updated by Kyeongmin Rim at Brandeis University. Wrapped software can be "
                     "found at https://github.com/brandeis-llc/aapb-pua-kaldi-docker . ",
         app_license="Apache 2.0",
-        identifier=f"http://apps.clams.ai/aapb-pua-kaldi-wrapper",
+        identifier=f"aapb-pua-kaldi-wrapper",
         url="https://github.com/clamsproject/app-aapb-pua-kaldi-wrapper",
         analyzer_version="v4",
         analyzer_license="UNKNOWN",
     )
-    # metadata.add_input_oneof(DocumentTypes.AudioDocument, DocumentTypes.VideoDocument)
     metadata.add_input(DocumentTypes.AudioDocument)
     metadata.add_output(DocumentTypes.TextDocument)
     metadata.add_output(AnnotationTypes.TimeFrame, timeUnit=timeunit)
