@@ -1,2 +1,2 @@
-clams-python==0.6.3
+clams-python==1.0.2
 ffmpeg-python==0.2.0

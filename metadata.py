@@ -33,7 +33,7 @@ def appmetadata() -> AppMetadata:
         analyzer_version="v4",
         analyzer_license="UNKNOWN",
     )
-    metadata.add_input(DocumentTypes.AudioDocument)
+    metadata.add_input_oneof(DocumentTypes.AudioDocument, DocumentTypes.VideoDocument)
     metadata.add_output(DocumentTypes.TextDocument)
     metadata.add_output(AnnotationTypes.TimeFrame, timeUnit=timeunit)
     metadata.add_output(AnnotationTypes.Alignment)

@@ -28,8 +28,9 @@ class AAPB_PUA_Kaldi(ClamsApp):
             mmif: Mmif = Mmif(mmif)
 
         # get AudioDocuments with locations
-        docs = [document for document in mmif.documents
-                if document.at_type == DocumentTypes.AudioDocument and len(document.location) > 0]
+        docs = [document for document in mmif.documents if 
+                document.at_type in (DocumentTypes.AudioDocument, DocumentTypes.VideoDocument) and 
+                len(document.location) > 0]
         conf = self.get_configuration(**parameters)
         use_speech_segmentation = conf.get('use_speech_segmentation', True)
 
