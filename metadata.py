@@ -6,6 +6,7 @@ DO NOT CHANGE the name of the file
 from lapps.discriminators import Uri
 from mmif import DocumentTypes, AnnotationTypes
 
+from clams.app import ClamsApp
 from clams.appmetadata import AppMetadata
 
 timeunit = 'milliseconds'
@@ -40,7 +41,7 @@ def appmetadata() -> AppMetadata:
     metadata.add_output(Uri.TOKEN)
     metadata.add_parameter(name="use_speech_segmentation",
                            type="boolean",
-                           description="When true, the app looks for existing TimeFrame { \"frameType\": "
+                           description="When true, the app looks for existing TimeFrame with { \"frameType\": "
                                        "\"speech\" } annotations, and runs ASR only on those frames, instead of "
                                        "entire audio files.",
                            default="true")
@@ -49,4 +50,7 @@ def appmetadata() -> AppMetadata:
 # DO NOT CHANGE the main block
 if __name__ == '__main__':
     import sys
-    sys.stdout.write(appmetadata().jsonify(pretty=True))
+    metadata = appmetadata()
+    for param in ClamsApp.universal_parameters:
+        metadata.add_parameter(**param)
+    sys.stdout.write(metadata.jsonify(pretty=True))

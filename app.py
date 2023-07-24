@@ -1,6 +1,7 @@
 import argparse
 import bisect
 import json
+import logging
 import os
 import subprocess
 import tempfile
@@ -9,7 +10,7 @@ from typing import Dict, Sequence, Tuple, Union
 import ffmpeg
 from clams import ClamsApp, Restifier
 from lapps.discriminators import Uri
-from mmif import Mmif, View, Annotation, Document, AnnotationTypes, DocumentTypes
+from mmif import Mmif, View, AnnotationTypes, DocumentTypes
 
 import metadata
 
@@ -23,7 +24,6 @@ class AAPB_PUA_Kaldi(ClamsApp):
         pass
 
     def _annotate(self, mmif: Union[str, dict, Mmif], **parameters) -> Mmif:
-        # use_speech_segmentation=True) -> Mmif:
         if not isinstance(mmif, Mmif):
             mmif: Mmif = Mmif(mmif)
 
@@ -75,6 +75,14 @@ class AAPB_PUA_Kaldi(ClamsApp):
                     self._kaldi_to_segmented_textdocument(transcript, view, segmentataion_indices[audiodoc_id])
     
     def _kaldi_to_single_textdocument(self, pua_transcript, view, source_audio_doc):
+        """
+        Given a PUA transcript, create a single TextDocument and align it to the source audio.
+        
+        :param pua_transcript: PUA transcript in python dict
+        :param view: MMIF view to add annotations to
+        :param source_audio_doc: source AudioDocument
+        
+        """
         # PUA transcript has this structure;
         """
         {
@@ -88,19 +96,22 @@ class AAPB_PUA_Kaldi(ClamsApp):
         # join tokens
         raw_text = self.token_boundary.join([token['word'] for token in pua_transcript['words']])
         # make annotations
-        textdoc = self._create_td(view, raw_text)
-        self._create_align(view, source_audio_doc, textdoc)
+        textdoc = view.new_textdocument(raw_text)
+        view.new_annotation(AnnotationTypes.Alignment, source=source_audio_doc.id, target=textdoc.id)
         char_offset = 0
         for index, word_obj in enumerate(pua_transcript['words']):
             raw_token = word_obj['word']
             tok_start = char_offset
             tok_end = tok_start + len(raw_token)
             char_offset += len(raw_token) + len(self.token_boundary)
-            token = self._create_token(view, word_obj['word'], tok_start, tok_end, f'{view.id}:{textdoc.id}')
+            token = view.new_annotation(Uri.TOKEN, 
+                                        start=tok_start, end=tok_end, 
+                                        word=word_obj['word'], 
+                                        document=f'{view.id}:{textdoc.id}')
             tf_start = int(word_obj['time'] * self.timeunit_conv[metadata.timeunit])
             tf_end = int(float(word_obj['duration']) * self.timeunit_conv[metadata.timeunit]) + tf_start
-            tf = self._create_tf(view, tf_start, tf_end)
-            self._create_align(view, tf, token)  # counting one for TextDoc-AudioDoc alignment
+            tf = view.new_annotation(AnnotationTypes.TimeFrame, start=tf_start, end=tf_end, frameType='speech')
+            view.new_annotation(AnnotationTypes.Alignment, source=tf.id, target=token.id)  # counting one for TextDoc-AudioDoc alignment
 
     def _kaldi_to_segmented_textdocument(self, transcript, view: View, view_w_tf: View):
         segment_ids, original_starts, original_ends, patchwork_starts, patchwork_ends = \
@@ -109,7 +120,7 @@ class AAPB_PUA_Kaldi(ClamsApp):
         cur_segment = 0
         # start with an empty text doc to provide text doc id to token annotations
         raw_text = ""
-        textdoc = self._create_td(view, raw_text)
+        textdoc = view.new_textdocument(raw_text)
         position = 0
         sorted_words = sorted(transcript['words'], key=lambda x:x['time'])
         for index, word_obj in enumerate(sorted_words):
@@ -137,28 +148,31 @@ class AAPB_PUA_Kaldi(ClamsApp):
             if segment_num > cur_segment:
                 # inject collected tokens into the text doc and finalize it
                 textdoc.text_value = raw_text
-                self._create_align(view, view_w_tf.annotations.get(segment_ids[cur_segment]), textdoc)
+                view.new_annotation(AnnotationTypes.Alignment, source=view_w_tf.annotations.get(segment_ids[cur_segment]).id, target=textdoc.id)
 
                 # reset stuff and start a new text doc
                 position = 0
                 cur_segment = segment_num
                 raw_text = ""
-                textdoc = self._create_td(view, raw_text)
+                textdoc = view.new_textdocument(raw_text)
 
             # regardless of speech segment, process individual tokens
-            token = self._create_token(view, raw_token, char_start, char_end, f'{view.id}:{textdoc.id}')
+            token = view.new_annotation(Uri.TOKEN,
+                                        start=char_start, end=char_end,
+                                        word=raw_token,
+                                        document=f'{view.id}:{textdoc.id}')
             offset_from_original = original_starts[segment_num] - patchwork_starts[segment_num]
             start = int(start_in_patchwork + offset_from_original) 
             end = int(end_in_patchwork + offset_from_original)
             # TODO (krim @ 11/30/20): what happens when kaldi recognized a token spreads over to a "silence" zone?
-            tf = self._create_tf(view, start, end)
-            self._create_align(view, tf, token)
+            tf = view.new_annotation(AnnotationTypes.TimeFrame, start=start, end=end, frameType='speech')
+            view.new_annotation(AnnotationTypes.Alignment, source=tf.id, target=token.id)
             if len(raw_text) == 0:
                 raw_text = raw_token
             else:
                 raw_text = self.token_boundary.join((raw_text, raw_token))
         textdoc.text_value = raw_text
-        self._create_align(view, view_w_tf.annotations.get(segment_ids[cur_segment]), textdoc)
+        view.new_annotation(AnnotationTypes.Alignment, source=view_w_tf.annotations.get(segment_ids[cur_segment]).id, target=textdoc.id)
 
     def _align_segmentations_to_patchwork(self, speech_segment_annotations):
         speech_segments = [(ann.id, ann.properties['start'], ann.properties['end'])
@@ -176,36 +190,6 @@ class AAPB_PUA_Kaldi(ClamsApp):
                 new_starts.append(new_ends[i-1] + self.silence_gap * self.timeunit_conv[metadata.timeunit])
             new_ends.append(ori_ends[i] - ori_starts[i] + new_starts[i])
         return segment_ids, ori_starts, ori_ends, new_starts, new_ends
-
-    @staticmethod
-    def _create_td(parent_view: View, doc: str) -> Document:
-        td = parent_view.new_textdocument(doc)
-        return td
-
-    @staticmethod
-    def _create_token(parent_view: View, word: str, start: int, end: int, source_doc_id: str) -> Annotation:
-        token = parent_view.new_annotation(Uri.TOKEN, 
-                                           word=word, 
-                                           start=start, 
-                                           end=end, 
-                                           document=source_doc_id)
-        return token
-
-    @staticmethod
-    def _create_tf(parent_view: View, start: int, end: int) -> Annotation:
-        # unlike _create_token, parent document is encoded in the contains metadata of TimeFrame
-        tf = parent_view.new_annotation(AnnotationTypes.TimeFrame,
-                                        frameType='speech',
-                                        start=start,
-                                        end=end)
-        return tf
-
-    @staticmethod
-    def _create_align(parent_view: View, source: Annotation, target: Annotation) -> Annotation:
-        align = parent_view.new_annotation(AnnotationTypes.Alignment, 
-                                           source=source.id,
-                                           target=target.id)
-        return align
 
     def _patchwork_audiofiles(self, mmif, audio_documents):
         """ 
@@ -313,17 +297,8 @@ class AAPB_PUA_Kaldi(ClamsApp):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--port',
-        action='store',
-        default='5000',
-        help='set port to listen'
-    )
-    parser.add_argument(
-        '--production',
-        action='store_true',
-        help='run gunicorn server'
-    )
+    parser.add_argument('--port', action='store', default='5000', help='set port to listen')
+    parser.add_argument('--production', action='store_true', help='run gunicorn server')
     parsed_args = parser.parse_args()
 
     puakaldi = AAPB_PUA_Kaldi()
@@ -331,4 +306,5 @@ if __name__ == '__main__':
     if parsed_args.production:
         puakaldi_flask.serve_production()
     else:
+        puakaldi.logger.setLevel(logging.DEBUG)
         puakaldi_flask.run()

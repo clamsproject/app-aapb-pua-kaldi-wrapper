@@ -5,6 +5,9 @@ tests/
 .gitignore
 .dockerignore
 Dockerfile
+Containerfile
+bin/
+build/
 *~
 **/*.pyc
 **/__pyche__
